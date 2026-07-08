@@ -162,6 +162,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft
 .print-only { display:none; }
 @media (max-width:600px) { .container{padding:8px} .header{padding:18px} .header h1{font-size:1.2em} .order-grid{grid-template-columns:1fr} .form-row{grid-template-columns:1fr} .topbar{flex-direction:column;align-items:stretch} .modal{max-width:100%;border-radius:16px 16px 0 0;margin-top:auto;max-height:95vh} .dash-grid{grid-template-columns:repeat(2,1fr)} .dash-alerts{grid-template-columns:1fr} .rankings{grid-template-columns:1fr} .records-table{font-size:0.75em} .tab{font-size:0.78em;padding:10px 5px} }
 </style>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="出租管理">
 </head>
 <body>
 <div class="container">
@@ -391,6 +398,11 @@ document.getElementById('modalOverlay').addEventListener('click',function(e){if(
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeModal();});
 
 loadData();renderAll();requestNotification();checkNotifications();startNotifyInterval();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(err => console.log('SW failed:', err));
+}
 </script>
 </body>
 </html>
