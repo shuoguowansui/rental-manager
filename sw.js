@@ -5,7 +5,7 @@ self.addEventListener('install', e => {
   console.log('🚀 SW: installing');
   e.waitUntil(
     caches.open(CACHE).then(cache => {
-      return cache.addAll(['index.html', 'manifest.json', 'icon-192.svg', 'icon-512.svg']);
+      return cache.addAll(['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png']);
     }).catch(() => { /* some files may not exist yet */ })
   );
   self.skipWaiting();
