@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="出租管理">
 <meta name="theme-color" content="#1A3B5C">
-<meta name="description" content="极简出租管理系统 - 脚手架·围挡·钢管架">
+<meta name="description" content="极简出租管理系统 - 脚手架·围挡·钢管架出租+售卖">
 <title>极简出租管理系统</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -80,6 +80,7 @@ h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.02em; color: var(--text-ma
 }
 .btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
 .btn-sm { padding: 4px 10px; min-height: 28px; font-size: 0.75rem; }
+.btn-xs { padding: 2px 8px; min-height: 24px; font-size: 0.7rem; }
 input, select, textarea {
   width: 100%;
   padding: 8px 12px;
@@ -107,6 +108,7 @@ label { font-size: 0.75rem; color: var(--text-sec); margin-bottom: 4px; display:
 .chip-warning { background: #FFF3E0; color: #C95E00; border-color: #FFE0B2; }
 .chip-overdue { background: #FDECEC; color: #C7162B; border-color: #FAD3D3; }
 .chip-returned { background: #F3F4F6; color: #6B7280; border-color: #E5E7EB; }
+.chip-sale { background: #E8F0FE; color: #1A56DB; border-color: #D1E0F8; }
 #toast {
   position: fixed; top: 16px; right: 16px; z-index: 9999;
   background: var(--text-main); color: white;
@@ -143,6 +145,11 @@ table th { background: var(--bg-subtle); color: var(--text-sec); font-weight: 60
 .offline-banner { background: #C7162B; color: white; text-align: center; padding: 4px; font-size: 0.75rem; font-weight: 500; }
 .install-banner { background: #1A3B5C; color: white; text-align: center; padding: 10px 16px; font-size: 0.85rem; font-weight: 500; cursor: pointer; display: none; }
 .install-banner.show { display: block; }
+.backup-banner { background: #FFF3E0; color: #C95E00; text-align: center; padding: 10px 16px; font-size: 0.85rem; font-weight: 500; display: none; border-bottom: 1px solid #FFE0B2; }
+.backup-banner.show { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.filter-btn { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg); color: var(--text-sec); cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: all 0.15s; }
+.filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+.filter-btn:hover:not(.active) { border-color: #d1d5db; background: var(--bg-subtle); }
 @media (max-width: 640px) {
   .footer-bar { flex-direction: column; gap: 8px; align-items: stretch; }
   .footer-bar > div:first-child { justify-content: space-around; }
@@ -157,6 +164,13 @@ table th { background: var(--bg-subtle); color: var(--text-sec); font-weight: 60
 
   <!-- PWA 安装提示 -->
   <div id="install-banner" class="install-banner" onclick="installPWA()">📲 点击此处将此应用安装到桌面/主屏幕</div>
+
+  <!-- 备份提醒 -->
+  <div id="backup-banner" class="backup-banner">
+    <span id="backup-msg">⚠️ 建议备份数据</span>
+    <button onclick="exportAllJSON()" class="btn btn-primary btn-xs">📥 立即导出</button>
+    <button onclick="dismissBackup()" class="btn btn-xs">稍后</button>
+  </div>
 
   <!-- 顶部导航 -->
   <header class="sticky top-0 bg-white border-b border-gray-200 z-50" style="border-color: var(--border); padding-top: env(safe-area-inset-top);">
@@ -174,6 +188,7 @@ table th { background: var(--bg-subtle); color: var(--text-sec); font-weight: 60
         <div class="nav-tab" data-tab="scaffold">🪜 脚手架</div>
         <div class="nav-tab" data-tab="fence">🚧 围挡</div>
         <div class="nav-tab" data-tab="pipe">🔩 钢管架</div>
+        <div class="nav-tab" data-tab="sales">🛒 售卖</div>
         <div class="nav-tab" data-tab="stats">📊 统计分析</div>
         <div class="nav-tab" data-tab="records">📋 全部记录</div>
       </nav>
@@ -229,21 +244,59 @@ table th { background: var(--bg-subtle); color: var(--text-sec); font-weight: 60
 // ========== 数据与初始化 ==========
 const CATEGORIES = ['scaffold', 'fence', 'pipe'];
 const CAT_NAMES = { scaffold: '脚手架', fence: '围挡', pipe: '钢管架' };
+const SALES_CATS = ['fence', 'scaffold', 'pipe'];
 
 let DB = {
   settings: {
     scaffold: {name: '脚手架', unit: '套', totalInventory: 500, dailyCost: 2, threshold: 50},
     fence: {name: '围挡', unit: '米', totalInventory: 2000, dailyCost: 1, threshold: 100},
-    pipe: {name: '钢管架', unit: '吨', totalInventory: 100, dailyCost: 15, threshold: 20}
+    pipe: {name: '钢管架', unit: '吨', totalInventory: 100, dailyCost: 15, threshold: 20},
+    salesSettings: {
+      fence: [
+        {key: 'steel', name: '钢构围挡', price: 200},
+        {key: 'flower', name: '花草围挡', price: 180},
+        {key: 'newType', name: '新型围挡', price: 250}
+      ],
+      scaffold: [
+        {key: 'board', name: '板子', price: 80},
+        {key: 'rod', name: '拉杆', price: 50},
+        {key: 'bracket', name: '支架', price: 60},
+        {key: 'wheel', name: '轮子', price: 40}
+      ],
+      pipe: []
+    }
   },
   orders: [],
-  deletedOrders: []
+  sales: [],
+  deletedOrders: [],
+  deletedSales: [],
+  lastBackupDate: null
 };
 
 function loadDB() {
   const data = localStorage.getItem('rentalDB');
   if (data) {
-    try { DB = JSON.parse(data); } catch(e) { /* corrupted, use default */ }
+    try {
+      const parsed = JSON.parse(data);
+      DB = {...DB, ...parsed};
+      // 兼容旧数据：确保新字段存在
+      if (!DB.sales) DB.sales = [];
+      if (!DB.deletedSales) DB.deletedSales = [];
+      if (!DB.settings.salesSettings) DB.settings.salesSettings = {
+        fence: [
+          {key: 'steel', name: '钢构围挡', price: 200},
+          {key: 'flower', name: '花草围挡', price: 180},
+          {key: 'newType', name: '新型围挡', price: 250}
+        ],
+        scaffold: [
+          {key: 'board', name: '板子', price: 80},
+          {key: 'rod', name: '拉杆', price: 50},
+          {key: 'bracket', name: '支架', price: 60},
+          {key: 'wheel', name: '轮子', price: 40}
+        ],
+        pipe: []
+      };
+    } catch(e) { /* corrupted, use default */ }
   } else {
     // 演示数据
     const today = new Date();
@@ -304,12 +357,31 @@ function adjustFont(delta) {
   }
 }
 
+// ========== 备份提醒 ==========
+function checkBackupReminder() {
+  const banner = document.getElementById('backup-banner');
+  const msg = document.getElementById('backup-msg');
+  if (!DB.lastBackupDate) {
+    banner.classList.add('show');
+    msg.textContent = '⚠️ 你还没有备份过数据，建议立即导出备份';
+    return;
+  }
+  const days = Math.floor((Date.now() - DB.lastBackupDate) / 86400000);
+  if (days >= 7) {
+    banner.classList.add('show');
+    msg.textContent = '⚠️ 你已有 ' + days + ' 天未备份数据，建议立即导出备份';
+  }
+}
+
+function dismissBackup() {
+  document.getElementById('backup-banner').classList.remove('show');
+}
+
 // ========== 路由与渲染 ==========
 document.querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    // 销毁旧图表
     Object.values(window._charts||{}).forEach(c => c && c.destroy && c.destroy());
     window._charts = {};
     renderView(tab.dataset.tab);
@@ -326,19 +398,23 @@ function renderView(view) {
     renderStats(main);
   } else if (view === 'records') {
     renderRecords(main);
+  } else if (view === 'sales') {
+    renderSales(main);
   }
   updateFooter();
 }
 
 // ========== 仪表盘 ==========
 function renderDashboard(container) {
+  checkBackupReminder();
+
   const todayStr = new Date().toISOString().split('T')[0];
   const activeOrders = DB.orders.filter(o => !o.returnedDate);
   const dueToday = activeOrders.filter(o => o.endDate === todayStr);
   const overdue = activeOrders.filter(o => o.endDate < todayStr);
-  const allRevenue = DB.orders.reduce((sum, o) => sum + calcOrder(o).totalRent, 0);
-  const monthRevenue = DB.orders.filter(o => o.startDate.startsWith(todayStr.substring(0,7))).reduce((sum, o) => sum + calcOrder(o).totalRent, 0);
-  const todayRevenue = DB.orders.filter(o => o.startDate === todayStr).reduce((sum, o) => sum + calcOrder(o).totalRent, 0);
+  const allRevenue = totalRevenue();
+  const monthRevenue = revenueInPeriod(getMonthRange(todayStr));
+  const todayRevenue = revenueInPeriod({start: todayStr, end: todayStr});
 
   container.innerHTML = `
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -402,20 +478,30 @@ function renderDashboard(container) {
     <div class="card p-4">
       <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">🕐 最近活动</h4>
       <div class="text-sm text-gray-600">
-        ${DB.orders.slice().reverse().slice(0,5).map(o => {
-          const status = getStatus(o);
-          return `<div class="py-1.5 border-b border-gray-50 flex justify-between">
-            <span>${o.bossName} · ${CAT_NAMES[o.category]} · ${o.quantity}${DB.settings[o.category].unit}</span>
-            <span class="chip ${status.class}">${status.text}</span>
-          </div>`;
-        }).join('') || '<p class="text-gray-400">暂无记录</p>'}
+        ${(() => {
+          const recent = [...DB.orders, ...DB.sales].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
+          return recent.map(item => {
+            if (item.category && item.startDate) {
+              const status = getStatus(item);
+              return `<div class="py-1.5 border-b border-gray-50 flex justify-between">
+                <span>🔧 ${item.bossName} · ${CAT_NAMES[item.category]} · ${item.quantity}${DB.settings[item.category].unit}</span>
+                <span class="chip ${status.class}">${status.text}</span>
+              </div>`;
+            } else {
+              return `<div class="py-1.5 border-b border-gray-50 flex justify-between">
+                <span>🛒 ${item.customerName} · ${getSaleItemName(item)} · ${item.quantity}套</span>
+                <span class="chip chip-sale">售卖</span>
+              </div>`;
+            }
+          }).join('') || '<p class="text-gray-400">暂无记录</p>';
+        })()}
       </div>
     </div>
   `;
 }
 
 function updateRevDisplay() {
-  // 纯展示切换，不需要重新渲染整个页面
+  // 纯展示切换
 }
 
 // ========== 品类管理 ==========
@@ -641,8 +727,233 @@ function copyOrder(id) {
   renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || order.category);
 }
 
+// ========== 售卖模块 ==========
+function getSaleItemName(sale) {
+  const items = DB.settings.salesSettings[sale.category] || [];
+  const item = items.find(i => i.key === sale.subType);
+  return item ? item.name : (sale.customName || sale.subType);
+}
+
+function renderSales(container) {
+  // 默认显示围挡
+  window._salesCat = window._salesCat || 'fence';
+  const cat = window._salesCat;
+  const sales = DB.sales.filter(s => s.category === cat);
+  const totalRev = sales.reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
+  const unpaidRev = sales.filter(s => !s.paid).reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
+  const items = DB.settings.salesSettings[cat] || [];
+
+  container.innerHTML = `
+    <div class="card p-4 mb-4">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+        <div>
+          <h2 class="text-xl font-semibold mb-1">🛒 售卖管理</h2>
+          <div class="text-sm text-gray-500">
+            共 ${sales.length} 笔 | 总营收: <span class="font-bold" style="color: var(--primary)">¥${totalRev.toFixed(0)}</span> | 未收: <span class="text-red-500 font-bold">¥${unpaidRev.toFixed(0)}</span>
+          </div>
+        </div>
+        <button onclick="openSalesModal()" class="btn btn-primary">+ 新增售卖</button>
+      </div>
+    </div>
+
+    <div class="flex gap-2 mb-4 flex-wrap">
+      <button class="filter-btn ${cat === 'fence' ? 'active' : ''}" onclick="switchSalesCat('fence')">🚧 围挡</button>
+      <button class="filter-btn ${cat === 'scaffold' ? 'active' : ''}" onclick="switchSalesCat('scaffold')">🪜 脚手架</button>
+      <button class="filter-btn ${cat === 'pipe' ? 'active' : ''}" onclick="switchSalesCat('pipe')">🔩 钢管架</button>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-4 mb-4">
+      <input id="sales-search" type="text" placeholder="🔍 搜索客户名..." class="md:w-64" oninput="salesFilter()">
+      <select id="sales-status" class="md:w-32" onchange="salesFilter()">
+        <option value="all">全部</option>
+        <option value="paid">已收款</option>
+        <option value="unpaid">未收款</option>
+      </select>
+    </div>
+
+    <div id="sales-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      ${renderSalesCards(sales)}
+    </div>
+  `;
+}
+
+function switchSalesCat(cat) {
+  window._salesCat = cat;
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('[data-tab="sales"]').classList.add('active');
+  renderSales(document.getElementById('main-content'));
+}
+
+function renderSalesCards(sales) {
+  if (sales.length === 0) return '<p class="text-gray-400 col-span-full text-center py-8">📭 暂无售卖记录</p>';
+  return sales.map(s => `
+    <div class="card p-4 cursor-pointer hover:shadow-md transition-shadow" onclick="openSalesModal('${s.id}')">
+      <div class="flex justify-between items-start mb-2">
+        <h4 class="font-semibold">${s.customerName}</h4>
+        <span class="chip ${s.paid ? 'chip-active' : 'chip-warning'}">${s.paid ? '已收款' : '未收款'}</span>
+      </div>
+      <div class="text-sm text-gray-500 mb-3">
+        📦 ${getSaleItemName(s)} &nbsp;|&nbsp; ${s.quantity} 套<br>
+        📅 ${s.date || '—'}
+      </div>
+      <div class="text-sm mb-3 border-t border-gray-100 pt-2">
+        <div class="flex justify-between"><span class="text-gray-400">单价</span> <span>¥${s.unitPrice}</span></div>
+        <div class="flex justify-between"><span class="text-gray-400">总额</span> <span class="font-bold">¥${(s.totalAmount || s.quantity * s.unitPrice).toFixed(0)}</span></div>
+      </div>
+      <div class="flex flex-wrap gap-2" onclick="event.stopPropagation()">
+        <button onclick="toggleSalePaid('${s.id}')" class="btn btn-sm flex-1 ${s.paid ? '' : 'btn-primary'}">${s.paid ? '↩️ 未收' : '💰 收款'}</button>
+        <button onclick="deleteSale('${s.id}')" class="btn btn-sm text-red-500">🗑️</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function salesFilter() {
+  const kw = (document.getElementById('sales-search')?.value || '').toLowerCase();
+  const status = document.getElementById('sales-status')?.value || 'all';
+  let list = DB.sales.filter(s => s.category === window._salesCat);
+  if (kw) list = list.filter(s => s.customerName.toLowerCase().includes(kw));
+  if (status === 'paid') list = list.filter(s => s.paid);
+  if (status === 'unpaid') list = list.filter(s => !s.paid);
+  const grid = document.getElementById('sales-list');
+  if (grid) grid.innerHTML = renderSalesCards(list);
+}
+
+function openSalesModal(id) {
+  const sale = id ? DB.sales.find(s => s.id === id) : null;
+  const cat = sale ? sale.category : (window._salesCat || 'fence');
+  const items = DB.settings.salesSettings[cat] || [];
+  const o = sale || { subType: items[0]?.key || '', quantity: 1, unitPrice: items[0]?.price || 0, paid: false, customerName: '', notes: '', date: new Date().toISOString().split('T')[0] };
+
+  document.getElementById('modal-container').innerHTML = `
+    <div class="modal-mask" onclick="if(event.target===this) closeModal()">
+      <div class="modal-content p-6">
+        <h3 class="text-lg font-semibold mb-4">${id ? '✏️ 编辑售卖' : '➕ 新增售卖'}</h3>
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2"><label>客户姓名 *</label><input id="sm-customerName" value="${o.customerName || ''}" autofocus></div>
+
+          <div><label>品类</label><select id="sm-category" onchange="salesModalUpdateTypes()">
+            <option value="fence" ${cat === 'fence' ? 'selected' : ''}>围挡</option>
+            <option value="scaffold" ${cat === 'scaffold' ? 'selected' : ''}>脚手架</option>
+            <option value="pipe" ${cat === 'pipe' ? 'selected' : ''}>钢管架</option>
+          </select></div>
+
+          <div><label>具体类型</label><select id="sm-subType" onchange="salesModalUpdatePrice()">
+            ${items.map(it => `<option value="${it.key}" ${o.subType === it.key ? 'selected' : ''}>${it.name} (¥${it.price})</option>`).join('')}
+            <option value="__custom__" ${o.subType === '__custom__' ? 'selected' : ''}>自定义</option>
+          </select></div>
+
+          <div id="sm-custom-group" class="${o.subType === '__custom__' ? '' : 'hidden'}">
+            <label>自定义名称</label><input id="sm-customName" value="${o.customName || ''}">
+          </div>
+
+          <div><label>数量 (套)</label><input id="sm-quantity" type="number" value="${o.quantity}" min="1" step="1" oninput="salesModalCalc()"></div>
+          <div><label>单价 (¥/套)</label><input id="sm-unitPrice" type="number" value="${o.unitPrice}" min="0" step="0.01" oninput="salesModalCalc()"></div>
+          <div><label>总金额 (¥)</label><input id="sm-totalAmount" type="number" value="${o.totalAmount || o.quantity * o.unitPrice}" min="0" step="0.01" readonly style="background:#f9fafb; font-weight:bold;"></div>
+          <div><label>日期</label><input id="sm-date" type="date" value="${o.date || ''}"></div>
+          <div><label>收款状态</label><select id="sm-paid"><option value="true" ${o.paid ? 'selected' : ''}>已收款</option><option value="false" ${!o.paid ? 'selected' : ''}>未收款</option></select></div>
+          <div class="col-span-2"><label>备注</label><textarea id="sm-notes" rows="2">${o.notes || ''}</textarea></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+          <button onclick="closeModal()" class="btn">取消</button>
+          <button onclick="saveSale('${id || ''}')" class="btn btn-primary">💾 保存</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function salesModalUpdateTypes() {
+  const cat = document.getElementById('sm-category')?.value || 'fence';
+  const items = DB.settings.salesSettings[cat] || [];
+  const sel = document.getElementById('sm-subType');
+  if (!sel) return;
+  sel.innerHTML = items.map(it => `<option value="${it.key}">${it.name} (¥${it.price})</option>`).join('') + '<option value="__custom__">自定义</option>';
+  salesModalUpdatePrice();
+}
+
+function salesModalUpdatePrice() {
+  const cat = document.getElementById('sm-category')?.value || 'fence';
+  const subType = document.getElementById('sm-subType')?.value || '';
+  const customGroup = document.getElementById('sm-custom-group');
+  if (subType === '__custom__') {
+    if (customGroup) customGroup.classList.remove('hidden');
+  } else {
+    if (customGroup) customGroup.classList.add('hidden');
+    const items = DB.settings.salesSettings[cat] || [];
+    const item = items.find(i => i.key === subType);
+    if (item) {
+      const priceEl = document.getElementById('sm-unitPrice');
+      if (priceEl) priceEl.value = item.price;
+    }
+  }
+  salesModalCalc();
+}
+
+function salesModalCalc() {
+  const qty = parseFloat(document.getElementById('sm-quantity')?.value) || 0;
+  const price = parseFloat(document.getElementById('sm-unitPrice')?.value) || 0;
+  const totalEl = document.getElementById('sm-totalAmount');
+  if (totalEl) totalEl.value = (qty * price).toFixed(2);
+}
+
+function saveSale(id) {
+  const customerName = document.getElementById('sm-customerName')?.value?.trim();
+  if (!customerName) { showToast('⚠️ 请填写客户姓名'); return; }
+  const cat = document.getElementById('sm-category')?.value || 'fence';
+  const subType = document.getElementById('sm-subType')?.value || '';
+  const isCustom = subType === '__custom__';
+
+  const data = {
+    customerName,
+    category: cat,
+    subType: isCustom ? '__custom__' : subType,
+    customName: isCustom ? (document.getElementById('sm-customName')?.value?.trim() || '自定义') : '',
+    quantity: parseInt(document.getElementById('sm-quantity')?.value) || 0,
+    unitPrice: parseFloat(document.getElementById('sm-unitPrice')?.value) || 0,
+    totalAmount: parseFloat(document.getElementById('sm-totalAmount')?.value) || 0,
+    date: document.getElementById('sm-date')?.value || '',
+    paid: document.getElementById('sm-paid')?.value === 'true',
+    notes: document.getElementById('sm-notes')?.value?.trim() || ''
+  };
+
+  if (id) {
+    const idx = DB.sales.findIndex(s => s.id === id);
+    if (idx !== -1) DB.sales[idx] = { ...DB.sales[idx], ...data };
+  } else {
+    DB.sales.push({ id: 's_' + Date.now(), ...data, createdAt: Date.now() });
+  }
+  saveDB();
+  closeModal();
+  showToast(id ? '✅ 已更新' : '✅ 已添加');
+  renderView('sales');
+}
+
+function toggleSalePaid(id) {
+  const sale = DB.sales.find(s => s.id === id);
+  if (!sale) return;
+  sale.paid = !sale.paid;
+  saveDB();
+  showToast(sale.paid ? '💰 已确认收款' : '↩️ 已取消收款');
+  renderView('sales');
+}
+
+function deleteSale(id) {
+  if (!confirm('⚠️ 确认删除此售卖记录？')) return;
+  const idx = DB.sales.findIndex(s => s.id === id);
+  if (idx === -1) return;
+  DB.deletedSales.push(DB.sales[idx]);
+  DB.sales.splice(idx, 1);
+  saveDB();
+  showToast('🗑️ 已删除');
+  renderView('sales');
+}
+
 // ========== 统计分析 ==========
 window._charts = {};
+window._statsPeriod = 'month';
+window._statsDate = new Date().toISOString().split('T')[0];
+
 function renderStats(container) {
   container.innerHTML = `
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -651,138 +962,312 @@ function renderStats(container) {
         <canvas id="chart-revenue" height="200"></canvas>
       </div>
       <div class="card p-4">
-        <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">🥧 品类营收占比</h4>
-        <canvas id="chart-category" height="200"></canvas>
+        <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">🥧 营收构成</h4>
+        <div class="flex flex-col sm:flex-row gap-4">
+          <div class="flex-1">
+            <p class="text-xs text-gray-400 mb-2 text-center">按品类</p>
+            <canvas id="chart-category" height="180"></canvas>
+          </div>
+          <div class="flex-1">
+            <p class="text-xs text-gray-400 mb-2 text-center">出租 vs 售卖</p>
+            <canvas id="chart-source" height="180"></canvas>
+          </div>
+        </div>
       </div>
     </div>
 
+    <!-- 营收明细查询 -->
     <div class="card p-4 mb-6">
+      <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">🔍 营收明细查询</h4>
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        ${['day','week','month','quarter','year','all'].map(p => {
+          const labels = {day:'日',week:'周',month:'月',quarter:'季',year:'年',all:'全部'};
+          return `<button class="filter-btn ${window._statsPeriod === p ? 'active' : ''}" onclick="switchStatsPeriod('${p}')">${labels[p]}</button>`;
+        }).join('')}
+        <input type="date" id="stats-date-picker" class="w-auto ml-2" value="${window._statsDate}" onchange="window._statsDate=this.value;renderStatsDetail()" style="${window._statsPeriod === 'all' ? 'display:none' : ''}">
+      </div>
+      <div id="stats-detail-list" class="overflow-x-auto"></div>
+    </div>
+
+    <div class="card p-4">
       <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">👤 老板排名 Top 10</h4>
       <div id="boss-analysis" class="overflow-x-auto"></div>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div class="card p-4">
-        <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">💰 利润估算</h4>
-        <div id="profit-table" class="overflow-x-auto"></div>
-      </div>
-      <div class="card p-4">
-        <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">🔄 周转效率</h4>
-        <div id="efficiency-table" class="overflow-x-auto"></div>
-      </div>
     </div>
   `;
 
   // 近30天营收柱状图
-  const revData = Array(30).fill(0);
-  const labels = [];
-  const today = new Date();
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(today.getTime() - i * 86400000);
-    const dStr = d.toISOString().split('T')[0];
-    labels.push((d.getMonth() + 1) + '/' + d.getDate());
+  setTimeout(() => {
+    const revData = Array(30).fill(0);
+    const labels = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(today.getTime() - i * 86400000);
+      const dStr = d.toISOString().split('T')[0];
+      labels.push((d.getMonth() + 1) + '/' + d.getDate());
+      DB.orders.forEach(o => {
+        const s = o.startDate, e = o.returnedDate || today.toISOString().split('T')[0];
+        if (s <= dStr && dStr <= e) revData[29 - i] += o.quantity * o.unitPrice;
+      });
+      DB.sales.forEach(s => {
+        if (s.date === dStr) revData[29 - i] += (s.totalAmount || s.quantity * s.unitPrice);
+      });
+    }
+    const revCanvas = document.getElementById('chart-revenue');
+    if (revCanvas) {
+      window._charts.rev = new Chart(revCanvas, {
+        type: 'bar',
+        data: { labels, datasets: [{ data: revData.map(v => Math.round(v)), backgroundColor: '#1A3B5C', borderRadius: 4 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: { grid: { color: '#f3f4f6' }, ticks: { callback: v => '¥' + v } } } }
+      });
+    }
+
+    // 品类营收饼图
+    const catRev = CATEGORIES.map(c => {
+      const rent = DB.orders.filter(o => o.category === c).reduce((s, o) => s + calcOrder(o).totalRent, 0);
+      const sale = DB.sales.filter(o => o.category === c).reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
+      return rent + sale;
+    });
+    const catCanvas = document.getElementById('chart-category');
+    if (catCanvas) {
+      window._charts.cat = new Chart(catCanvas, {
+        type: 'doughnut',
+        data: { labels: CATEGORIES.map(c => DB.settings[c].name), datasets: [{ data: catRev, backgroundColor: ['#1A3B5C', '#48C9B0', '#9B59B6'], borderWidth: 0 }] },
+        options: { cutout: '55%', responsive: true, plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } } } }
+      });
+    }
+
+    // 出租 vs 售卖饼图
+    const rentTotal = DB.orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
+    const saleTotal = DB.sales.reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
+    const srcCanvas = document.getElementById('chart-source');
+    if (srcCanvas) {
+      window._charts.src = new Chart(srcCanvas, {
+        type: 'doughnut',
+        data: { labels: ['🔧 出租', '🛒 售卖'], datasets: [{ data: [rentTotal, saleTotal], backgroundColor: ['#1A3B5C', '#F59E0B'], borderWidth: 0 }] },
+        options: { cutout: '55%', responsive: true, plugins: { legend: { position: 'bottom', labels: { padding: 12, font: { size: 11 } } } } }
+      });
+    }
+
+    // 老板排名
+    const bossMap = {};
     DB.orders.forEach(o => {
-      const s = o.startDate, e = o.returnedDate || today.toISOString().split('T')[0];
-      if (s <= dStr && dStr <= e) revData[29 - i] += o.quantity * o.unitPrice;
+      if (!bossMap[o.bossName]) bossMap[o.bossName] = { name: o.bossName, rent: 0, count: 0, overdue: 0 };
+      bossMap[o.bossName].rent += calcOrder(o).totalRent;
+      bossMap[o.bossName].count++;
+      if (getStatus(o).text === '已逾期') bossMap[o.bossName].overdue++;
     });
-  }
-  const revCanvas = document.getElementById('chart-revenue');
-  if (revCanvas) {
-    window._charts.rev = new Chart(revCanvas, {
-      type: 'bar',
-      data: { labels, datasets: [{ data: revData.map(v => Math.round(v)), backgroundColor: '#1A3B5C', borderRadius: 4 }] },
-      options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: { grid: { color: '#f3f4f6' }, ticks: { callback: v => '¥' + v } } } }
+    DB.sales.forEach(s => {
+      if (!bossMap[s.customerName]) bossMap[s.customerName] = { name: s.customerName, rent: 0, count: 0, overdue: 0 };
+      bossMap[s.customerName].rent += (s.totalAmount || s.quantity * s.unitPrice);
+      bossMap[s.customerName].count++;
     });
-  }
+    const bosses = Object.values(bossMap).sort((a, b) => b.rent - a.rent).slice(0, 10);
+    document.getElementById('boss-analysis').innerHTML = bosses.length ? `
+      <table class="w-full">
+        <thead><tr><th>#</th><th>客户</th><th>总金额</th><th>笔数</th><th>出租逾期</th><th>标签</th></tr></thead>
+        <tbody>
+          ${bosses.map((b, i) => `
+            <tr>
+              <td class="font-bold">${i + 1}</td>
+              <td class="font-medium">${b.name}</td>
+              <td>¥${b.rent.toFixed(0)}</td>
+              <td>${b.count}</td>
+              <td>${b.overdue}</td>
+              <td>
+                ${b.count >= 3 || b.rent >= 5000 ? '<span class="chip chip-active">⭐VIP</span> ' : ''}
+                ${b.overdue >= 2 ? '<span class="chip chip-overdue">⚠️风险</span>' : ''}
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : '<p class="text-gray-400 text-center py-4">暂无数据</p>';
 
-  // 品类饼图
-  const catRev = CATEGORIES.map(c => DB.orders.filter(o => o.category === c).reduce((s, o) => s + calcOrder(o).totalRent, 0));
-  const catCanvas = document.getElementById('chart-category');
-  if (catCanvas) {
-    window._charts.cat = new Chart(catCanvas, {
-      type: 'doughnut',
-      data: { labels: CATEGORIES.map(c => DB.settings[c].name), datasets: [{ data: catRev, backgroundColor: ['#1A3B5C', '#48C9B0', '#9B59B6'], borderWidth: 0 }] },
-      options: { cutout: '65%', responsive: true, plugins: { legend: { position: 'bottom', labels: { padding: 16, font: { size: 13 } } } } }
-    });
-  }
+    // 首次渲染明细
+    renderStatsDetail();
+  }, 50);
+}
 
-  // 老板分析
-  const bossMap = {};
+function switchStatsPeriod(period) {
+  window._statsPeriod = period;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  // 更新按钮状态
+  const btns = document.querySelectorAll('.filter-btn');
+  const labels = {day:0, week:1, month:2, quarter:3, year:4, all:5};
+  if (btns[labels[period]]) btns[labels[period]].classList.add('active');
+  // 更新日期选择器显示
+  const picker = document.getElementById('stats-date-picker');
+  if (picker) picker.style.display = period === 'all' ? 'none' : '';
+  // 设默认日期
+  const today = new Date();
+  if (period === 'day') window._statsDate = today.toISOString().split('T')[0];
+  else if (period === 'week') {
+    const d = new Date(today); d.setDate(d.getDate() - d.getDay() + 1);
+    window._statsDate = d.toISOString().split('T')[0];
+  } else if (period === 'month') { window._statsDate = today.toISOString().split('T')[0].substring(0,7) + '-01'; }
+  else if (period === 'quarter') {
+    const m = Math.floor(today.getMonth() / 3) * 3;
+    window._statsDate = today.getFullYear() + '-' + String(m+1).padStart(2,'0') + '-01';
+  } else if (period === 'year') { window._statsDate = today.getFullYear() + '-01-01'; }
+
+  const picker = document.getElementById('stats-date-picker');
+  if (picker) picker.value = window._statsDate;
+  renderStatsDetail();
+}
+
+function getDateRange(period, dateStr) {
+  if (period === 'all') return {start: null, end: null};
+  const d = new Date(dateStr + 'T00:00:00');
+  const y = d.getFullYear(), m = d.getMonth();
+  if (period === 'day') return {start: dateStr, end: dateStr};
+  if (period === 'week') {
+    const dayOfWeek = d.getDay();
+    const monday = new Date(d); monday.setDate(d.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+    return {start: monday.toISOString().split('T')[0], end: sunday.toISOString().split('T')[0]};
+  }
+  if (period === 'month') {
+    const lastDay = new Date(y, m + 1, 0);
+    return {start: y + '-' + String(m+1).padStart(2,'0') + '-01', end: lastDay.toISOString().split('T')[0]};
+  }
+  if (period === 'quarter') {
+    const qm = Math.floor(m / 3) * 3;
+    const lastDay = new Date(y, qm + 3, 0);
+    return {start: y + '-' + String(qm+1).padStart(2,'0') + '-01', end: lastDay.toISOString().split('T')[0]};
+  }
+  if (period === 'year') {
+    return {start: y + '-01-01', end: y + '-12-31'};
+  }
+  return {start: null, end: null};
+}
+
+function revenueInPeriod(range) {
+  if (!range.start && !range.end) {
+    const rent = DB.orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
+    const sale = DB.sales.reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
+    return rent + sale;
+  }
+  let total = 0;
   DB.orders.forEach(o => {
-    if (!bossMap[o.bossName]) bossMap[o.bossName] = { name: o.bossName, rent: 0, count: 0, overdue: 0 };
-    bossMap[o.bossName].rent += calcOrder(o).totalRent;
-    bossMap[o.bossName].count++;
-    if (getStatus(o).text === '已逾期') bossMap[o.bossName].overdue++;
+    const dailyRent = o.quantity * o.unitPrice;
+    const start = o.startDate, end = o.returnedDate || range.end;
+    if (start <= range.end && end >= range.start) {
+      const s = start < range.start ? range.start : start;
+      const e = end > range.end ? range.end : end;
+      const days = Math.max(1, daysBetween(s, e) + 1);
+      total += dailyRent * days;
+    }
   });
-  const bosses = Object.values(bossMap).sort((a, b) => b.rent - a.rent).slice(0, 10);
-  document.getElementById('boss-analysis').innerHTML = bosses.length ? `
+  DB.sales.forEach(s => {
+    if (!range.start || (s.date >= range.start && s.date <= range.end)) {
+      total += (s.totalAmount || s.quantity * s.unitPrice);
+    }
+  });
+  return total;
+}
+
+function totalRevenue() {
+  const rent = DB.orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
+  const sale = DB.sales.reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
+  return rent + sale;
+}
+
+function getMonthRange(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return {start: d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-01', end: lastDay.toISOString().split('T')[0]};
+}
+
+function renderStatsDetail() {
+  const range = getDateRange(window._statsPeriod, window._statsDate);
+  const container = document.getElementById('stats-detail-list');
+  if (!container) return;
+
+  // 收集所有记录
+  const rows = [];
+  DB.orders.forEach(o => {
+    const dailyRent = o.quantity * o.unitPrice;
+    const start = o.startDate, end = o.returnedDate || (range.end || new Date().toISOString().split('T')[0]);
+    if (!range.start || (start <= range.end && end >= range.start)) {
+      const s = range.start && start < range.start ? range.start : start;
+      const e = range.end && end > range.end ? range.end : end;
+      const days = Math.max(1, daysBetween(s, e) + 1);
+      rows.push({
+        date: o.startDate,
+        customer: o.bossName,
+        category: CAT_NAMES[o.category],
+        source: '🔧出租',
+        detail: o.quantity + DB.settings[o.category].unit + ' × ' + days + '天',
+        amount: dailyRent * days
+      });
+    }
+  });
+  DB.sales.forEach(s => {
+    if (!range.start || (s.date >= range.start && s.date <= range.end)) {
+      rows.push({
+        date: s.date,
+        customer: s.customerName,
+        category: s.category === 'fence' ? '围挡' : (s.category === 'scaffold' ? '脚手架' : '钢管架'),
+        source: '🛒售卖',
+        detail: getSaleItemName(s) + ' × ' + s.quantity + '套',
+        amount: s.totalAmount || s.quantity * s.unitPrice
+      });
+    }
+  });
+
+  rows.sort((a, b) => b.date.localeCompare(a.date));
+  const total = rows.reduce((s, r) => s + r.amount, 0);
+
+  container.innerHTML = rows.length === 0 ? '<p class="text-gray-400 text-center py-6">该时段暂无记录</p>' : `
     <table class="w-full">
-      <thead><tr><th>#</th><th>老板</th><th>总租金</th><th>订单数</th><th>逾期</th><th>标签</th></tr></thead>
+      <thead><tr><th>日期</th><th>客户</th><th>品类</th><th>来源</th><th>明细</th><th>金额</th></tr></thead>
       <tbody>
-        ${bosses.map((b, i) => `
+        ${rows.map(r => `
           <tr>
-            <td class="font-bold">${i + 1}</td>
-            <td class="font-medium">${b.name}</td>
-            <td>¥${b.rent.toFixed(0)}</td>
-            <td>${b.count}</td>
-            <td>${b.overdue}</td>
-            <td>
-              ${b.count >= 3 || b.rent >= 5000 ? '<span class="chip chip-active">⭐VIP</span> ' : ''}
-              ${b.overdue >= 2 ? '<span class="chip chip-overdue">⚠️风险</span>' : ''}
-            </td>
+            <td>${r.date}</td>
+            <td class="font-medium">${r.customer}</td>
+            <td>${r.category}</td>
+            <td>${r.source}</td>
+            <td class="text-sm">${r.detail}</td>
+            <td class="font-bold">¥${r.amount.toFixed(0)}</td>
           </tr>
         `).join('')}
       </tbody>
+      <tfoot>
+        <tr class="bg-gray-50 font-bold">
+          <td colspan="4" class="text-right">共 ${rows.length} 笔 &nbsp; 总营收：</td>
+          <td colspan="2" style="color: var(--primary); font-size: 1.1rem;">¥${total.toFixed(0)}</td>
+        </tr>
+      </tfoot>
     </table>
-  ` : '<p class="text-gray-400 text-center py-4">暂无数据</p>';
-
-  // 利润估算
-  let profitHtml = '<table class="w-full"><thead><tr><th>品类</th><th>收入</th><th>成本</th><th>利润</th><th>利润率</th></tr></thead><tbody>';
-  let totalRev = 0, totalCost = 0;
-  CATEGORIES.forEach(c => {
-    const orders = DB.orders.filter(o => o.category === c);
-    const rev = orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
-    const cost = orders.reduce((s, o) => s + (DB.settings[c].dailyCost || 0) * o.quantity * calcOrder(o).days, 0);
-    const profit = rev - cost;
-    totalRev += rev; totalCost += cost;
-    profitHtml += `<tr>
-      <td class="font-medium">${DB.settings[c].name}</td>
-      <td>¥${rev.toFixed(0)}</td>
-      <td>¥${cost.toFixed(0)}</td>
-      <td class="${profit >= 0 ? 'text-green-600' : 'text-red-500'} font-bold">¥${profit.toFixed(0)}</td>
-      <td>${rev ? (profit / rev * 100).toFixed(1) : '0'}%</td>
-    </tr>`;
-  });
-  const totalProfit = totalRev - totalCost;
-  profitHtml += `<tr class="font-bold bg-gray-50"><td>合计</td><td>¥${totalRev.toFixed(0)}</td><td>¥${totalCost.toFixed(0)}</td><td class="${totalProfit >= 0 ? 'text-green-600' : 'text-red-500'}">¥${totalProfit.toFixed(0)}</td><td>${totalRev ? (totalProfit / totalRev * 100).toFixed(1) : '0'}%</td></tr></tbody></table>`;
-  document.getElementById('profit-table').innerHTML = profitHtml;
-
-  // 周转效率
-  let effHtml = '<table class="w-full"><thead><tr><th>品类</th><th>订单数</th><th>平均天数</th><th>当前占用</th><th>利用率</th></tr></thead><tbody>';
-  CATEGORIES.forEach(c => {
-    const orders = DB.orders.filter(o => o.category === c);
-    const avgDays = orders.length ? (orders.reduce((s, o) => s + calcOrder(o).days, 0) / orders.length).toFixed(1) : 0;
-    const rented = orders.filter(o => !o.returnedDate).reduce((s, o) => s + o.quantity, 0);
-    const usage = DB.settings[c].totalInventory ? (rented / DB.settings[c].totalInventory * 100).toFixed(1) : 0;
-    effHtml += `<tr>
-      <td class="font-medium">${DB.settings[c].name}</td>
-      <td>${orders.length}</td>
-      <td>${avgDays} 天</td>
-      <td>${rented} / ${DB.settings[c].totalInventory} ${DB.settings[c].unit}</td>
-      <td class="font-bold">${usage}%</td>
-    </tr>`;
-  });
-  effHtml += '</tbody></table>';
-  document.getElementById('efficiency-table').innerHTML = effHtml;
+  `;
 }
 
 // ========== 全部记录 ==========
 function renderRecords(container) {
-  const orders = [...DB.orders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const all = [];
+  DB.orders.forEach(o => {
+    all.push({
+      date: o.startDate, customer: o.bossName, phone: o.phone, category: CAT_NAMES[o.category],
+      source: '🔧出租', detail: o.quantity + (DB.settings[o.category]?.unit || ''),
+      amount: calcOrder(o).totalRent, status: getStatus(o).text, paid: o.paid,
+      id: o.id, type: 'order', cat: o.category
+    });
+  });
+  DB.sales.forEach(s => {
+    all.push({
+      date: s.date, customer: s.customerName, phone: '', category: s.category === 'fence' ? '围挡' : (s.category === 'scaffold' ? '脚手架' : '钢管架'),
+      source: '🛒售卖', detail: getSaleItemName(s) + ' × ' + s.quantity + '套',
+      amount: s.totalAmount || s.quantity * s.unitPrice, status: s.paid ? '已收款' : '未收款', paid: s.paid,
+      id: s.id, type: 'sale', cat: s.category
+    });
+  });
+  all.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+
   container.innerHTML = `
     <div class="card p-4">
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
-        <h2 class="text-xl font-semibold">📋 全部订单记录 (${orders.length}条)</h2>
+        <h2 class="text-xl font-semibold">📋 全部记录 (${all.length}条)</h2>
         <div class="flex gap-2 flex-wrap">
           <input type="text" id="rec-search" placeholder="🔍 搜索..." class="md:w-48" oninput="filterRecords()">
           <button onclick="exportCSV()" class="btn btn-primary btn-sm">📥 导出CSV</button>
@@ -791,56 +1276,67 @@ function renderRecords(container) {
       <div class="overflow-x-auto">
         <table class="w-full" id="records-table">
           <thead>
-            <tr><th>老板</th><th>电话</th><th>品类</th><th>工地</th><th>数量</th><th>出货→截止</th><th>累计租金</th><th>状态</th><th>收款</th><th>操作</th></tr>
+            <tr><th>日期</th><th>客户</th><th>品类</th><th>来源</th><th>明细</th><th>金额</th><th>状态</th><th>收款</th><th>操作</th></tr>
           </thead>
           <tbody id="records-tbody">
-            ${renderRecordRows(orders)}
+            ${renderAllRows(all)}
           </tbody>
         </table>
       </div>
     </div>
   `;
+  window._allRecords = all;
 }
 
-function renderRecordRows(orders) {
-  return orders.map(o => `
+function renderAllRows(items) {
+  return items.map(r => `
     <tr>
-      <td class="font-medium">${o.bossName}</td>
-      <td class="text-sm">${o.phone}</td>
-      <td>${CAT_NAMES[o.category]}</td>
-      <td class="text-sm">${o.location}</td>
-      <td>${o.quantity} ${DB.settings[o.category]?.unit || ''}</td>
-      <td class="text-xs">${o.startDate} → ${o.endDate}</td>
-      <td class="font-bold">¥${calcOrder(o).totalRent.toFixed(0)}</td>
-      <td><span class="chip ${getStatus(o).class}">${getStatus(o).text}</span></td>
-      <td>${o.paid ? '✅' : '❌'}</td>
-      <td><button onclick="openOrderModal('${o.id}', '${o.category}')" class="btn btn-sm">详情</button></td>
+      <td>${r.date}</td>
+      <td class="font-medium">${r.customer}</td>
+      <td>${r.category}</td>
+      <td>${r.source}</td>
+      <td class="text-sm">${r.detail}</td>
+      <td class="font-bold">¥${r.amount.toFixed(0)}</td>
+      <td><span class="chip ${r.paid ? 'chip-active' : 'chip-warning'}">${r.status}</span></td>
+      <td>${r.paid ? '✅' : '❌'}</td>
+      <td>
+        ${r.type === 'order' ? `<button onclick="openOrderModal('${r.id}', '${r.cat}')" class="btn btn-xs">详情</button>` : `<button onclick="openSalesModal('${r.id}')" class="btn btn-xs">详情</button>`}
+      </td>
     </tr>
   `).join('');
 }
 
 function filterRecords() {
-  const kw = document.getElementById('rec-search')?.value?.toLowerCase() || '';
-  let orders = [...DB.orders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  if (kw) orders = orders.filter(o => o.bossName.toLowerCase().includes(kw) || o.location.toLowerCase().includes(kw) || o.phone.includes(kw));
+  const kw = (document.getElementById('rec-search')?.value || '').toLowerCase();
+  let all = window._allRecords || [];
+  if (kw) all = all.filter(r => r.customer.toLowerCase().includes(kw) || r.category.toLowerCase().includes(kw));
   const tbody = document.getElementById('records-tbody');
-  if (tbody) tbody.innerHTML = renderRecordRows(orders);
+  if (tbody) tbody.innerHTML = renderAllRows(all);
 }
 
 // ========== 底部栏与导出 ==========
 function updateFooter() {
-  const total = DB.orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
-  const paid = DB.orders.filter(o => o.paid).reduce((s, o) => s + calcOrder(o).totalRent, 0);
+  const rentTotal = DB.orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
+  const saleTotal = DB.sales.reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
+  const total = rentTotal + saleTotal;
+
+  const rentPaid = DB.orders.filter(o => o.paid).reduce((s, o) => s + calcOrder(o).totalRent, 0);
+  const salePaid = DB.sales.filter(s => s.paid).reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
+  const paid = rentPaid + salePaid;
+
   document.getElementById('total-amount').textContent = `¥${total.toFixed(0)}`;
   document.getElementById('paid-amount').textContent = `¥${paid.toFixed(0)}`;
   document.getElementById('unpaid-amount').textContent = `¥${(total - paid).toFixed(0)}`;
 }
 
 function exportCSV() {
-  let csv = '﻿老板,电话,工地,品类,出货日期,截止日期,回收日期,数量,单价,押金,天数,累计租金,状态,已收款,备注\n';
+  let csv = '﻿日期,类型,客户,电话,品类,明细,金额,收款状态,备注\n';
   DB.orders.forEach(o => {
     const c = calcOrder(o);
-    csv += `"${o.bossName}","${o.phone}","${o.location}","${CAT_NAMES[o.category]}","${o.startDate}","${o.endDate}","${o.returnedDate || ''}","${o.quantity}","${o.unitPrice}","${o.deposit}","${c.days}","${c.totalRent.toFixed(2)}","${getStatus(o).text}","${o.paid ? '是' : '否'}","${o.notes}"\n`;
+    csv += `"${o.startDate}","出租","${o.bossName}","${o.phone}","${CAT_NAMES[o.category]}","${o.quantity}${DB.settings[o.category].unit}×${c.days}天","${c.totalRent.toFixed(2)}","${o.paid ? '是' : '否'}","${o.notes}"\n`;
+  });
+  DB.sales.forEach(s => {
+    csv += `"${s.date}","售卖","${s.customerName}","","${s.category === 'fence' ? '围挡' : (s.category === 'scaffold' ? '脚手架' : '钢管架')}","${getSaleItemName(s)}×${s.quantity}套","${(s.totalAmount || s.quantity * s.unitPrice).toFixed(2)}","${s.paid ? '是' : '否'}","${s.notes}"\n`;
   });
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
   const link = document.createElement('a');
@@ -899,10 +1395,12 @@ function openSettings() {
   document.getElementById('modal-container').innerHTML = `
     <div class="modal-mask" onclick="if(event.target===this) closeModal()">
       <div class="modal-content p-6">
-        <h3 class="text-lg font-semibold mb-4">⚙️ 品类设置</h3>
+        <h3 class="text-lg font-semibold mb-2">⚙️ 设置</h3>
+
+        <h4 class="font-medium text-sm text-gray-500 uppercase tracking-wide mt-4 mb-2">出租品类</h4>
         ${CATEGORIES.map(c => `
-          <div class="mb-5 pb-4 border-b last:border-0">
-            <h4 class="font-medium mb-2">${DB.settings[c].name}</h4>
+          <div class="mb-4 pb-3 border-b last:border-0">
+            <h5 class="font-medium mb-1">${DB.settings[c].name}</h5>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
               <div><label>名称</label><input id="set-name-${c}" value="${DB.settings[c].name}"></div>
               <div><label>单位</label><input id="set-unit-${c}" value="${DB.settings[c].unit}"></div>
@@ -912,6 +1410,28 @@ function openSettings() {
             </div>
           </div>
         `).join('')}
+
+        <h4 class="font-medium text-sm text-gray-500 uppercase tracking-wide mt-4 mb-2">售卖定价</h4>
+        ${SALES_CATS.filter(c => c !== 'pipe').map(c => {
+          const items = DB.settings.salesSettings[c] || [];
+          return `
+            <div class="mb-3 pb-3 border-b">
+              <h5 class="font-medium mb-1">${c === 'fence' ? '围挡' : '脚手架'}</h5>
+              <div id="sales-settings-${c}" class="grid grid-cols-2 gap-2">
+                ${items.map((it, i) => `
+                  <div class="flex items-center gap-2">
+                    <input value="${it.name}" class="flex-1" onchange="updateSalesSetting('${c}', ${i}, 'name', this.value)">
+                    <input type="number" value="${it.price}" class="w-20" min="0" step="1" onchange="updateSalesSetting('${c}', ${i}, 'price', parseFloat(this.value))">
+                    <span class="text-xs text-gray-400">¥/套</span>
+                    <button onclick="removeSalesItem('${c}', ${i})" class="text-red-400 text-xs">✕</button>
+                  </div>
+                `).join('')}
+              </div>
+              <button onclick="addSalesItem('${c}')" class="btn btn-xs mt-2">+ 添加类型</button>
+            </div>
+          `;
+        }).join('')}
+
         <div class="flex flex-col md:flex-row justify-between gap-3 mt-4">
           <div class="flex gap-2">
             <button onclick="exportAllJSON()" class="btn btn-sm">📤 导出全部</button>
@@ -922,6 +1442,29 @@ function openSettings() {
       </div>
     </div>
   `;
+}
+
+function updateSalesSetting(cat, idx, field, value) {
+  if (!DB.settings.salesSettings[cat]) DB.settings.salesSettings[cat] = [];
+  if (DB.settings.salesSettings[cat][idx]) {
+    DB.settings.salesSettings[cat][idx][field] = value;
+  }
+}
+
+function addSalesItem(cat) {
+  if (!DB.settings.salesSettings[cat]) DB.settings.salesSettings[cat] = [];
+  const newKey = 'custom_' + Date.now();
+  DB.settings.salesSettings[cat].push({key: newKey, name: '新类型', price: 0});
+  saveDB();
+  closeModal();
+  openSettings();
+}
+
+function removeSalesItem(cat, idx) {
+  DB.settings.salesSettings[cat].splice(idx, 1);
+  saveDB();
+  closeModal();
+  openSettings();
 }
 
 function saveSettings() {
@@ -944,12 +1487,15 @@ function saveSettings() {
 }
 
 function exportAllJSON() {
+  DB.lastBackupDate = Date.now();
+  saveDB();
   const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
   const link = document.createElement('a');
   link.href = URL.createObjectURL(blob);
   link.download = `rental_full_backup_${new Date().toISOString().split('T')[0]}.json`;
   link.click();
   showToast('📤 全部数据已导出');
+  dismissBackup();
 }
 
 function importAllJSON() {
@@ -964,7 +1510,7 @@ function importAllJSON() {
       try {
         const data = JSON.parse(ev.target.result);
         if (!data.orders || !data.settings) throw new Error('格式错误');
-        DB = data;
+        DB = {...DB, ...data};
         saveDB();
         closeModal();
         showToast('✅ 导入成功');
@@ -1041,7 +1587,6 @@ window.addEventListener('DOMContentLoaded', () => {
   updateOnlineStatus();
   renderView('dashboard');
 
-  // 延迟显示安装横幅（等 beforeinstallprompt 事件触发）
   setTimeout(() => {
     if (!deferredInstallPrompt && window.matchMedia('(display-mode: standalone)').matches) {
       document.getElementById('install-banner').classList.remove('show');
