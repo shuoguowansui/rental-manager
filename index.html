@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="出租管理">
+<meta name="theme-color" content="#1A3B5C">
+<meta name="description" content="极简出租管理系统 - 脚手架·围挡·钢管架">
+<title>极简出租管理系统</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231A3B5C'/><text x='50' y='68' font-size='55' text-anchor='middle' fill='white'>租</text></svg>">
+<style>
+:root {
+  --primary: #1A3B5C;
+  --primary-hover: #2C5282;
+  --bg: #FFFFFF;
+  --bg-subtle: #F9FAFB;
+  --text-main: #1F2937;
+  --text-sec: #6B7280;
+  --border: #E5E7EB;
+  --radius: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05);
+  --font-size-base: 16px;
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { font-size: var(--font-size-base); }
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text-main);
+  margin: 0;
+  padding-bottom: 70px;
+  -webkit-font-smoothing: antialiased;
+  font-weight: 400;
+}
+h1, h2, h3, h4 { font-weight: 600; letter-spacing: -0.02em; color: var(--text-main); }
+.nav-tab {
+  padding: 12px 16px;
+  color: var(--text-sec);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+.nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.nav-tab:hover { color: var(--primary); }
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+.btn {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+}
+.btn:hover { background: var(--bg-subtle); border-color: #d1d5db; }
+.btn-primary {
+  background: var(--primary);
+  color: white;
+  border-color: var(--primary);
+}
+.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn-sm { padding: 4px 10px; min-height: 28px; font-size: 0.75rem; }
+input, select, textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  outline: none;
+  transition: border 0.2s;
+  background: var(--bg);
+  font-family: inherit;
+  color: var(--text-main);
+}
+input:focus, select:focus, textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,59,92,0.1); }
+label { font-size: 0.75rem; color: var(--text-sec); margin-bottom: 4px; display: block; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; }
+.chip {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border: 1px solid transparent;
+  display: inline-block;
+  white-space: nowrap;
+}
+.chip-active { background: #E6F7EE; color: #0E8C4E; border-color: #D1EAD8; }
+.chip-warning { background: #FFF3E0; color: #C95E00; border-color: #FFE0B2; }
+.chip-overdue { background: #FDECEC; color: #C7162B; border-color: #FAD3D3; }
+.chip-returned { background: #F3F4F6; color: #6B7280; border-color: #E5E7EB; }
+#toast {
+  position: fixed; top: 16px; right: 16px; z-index: 9999;
+  background: var(--text-main); color: white;
+  padding: 10px 16px; border-radius: var(--radius);
+  opacity: 0; transform: translateY(-10px); transition: all 0.3s;
+  font-size: 0.875rem; box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+#toast.show { opacity: 1; transform: translateY(0); }
+.modal-mask {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  backdrop-filter: blur(2px);
+}
+.modal-content {
+  background: var(--bg); border-radius: 8px; width: 100%; max-width: 500px;
+  max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+}
+.footer-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg);
+  border-top: 1px solid var(--border); padding: 10px 16px; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.03);
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+}
+.stat-card { padding: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
+.stat-num { font-size: 1.5rem; font-weight: 700; color: var(--primary); }
+.stat-label { font-size: 0.75rem; color: var(--text-sec); text-transform: uppercase; letter-spacing: 0.05em; }
+table th, table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; font-size: 0.85rem; }
+table th { background: var(--bg-subtle); color: var(--text-sec); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+.offline-banner { background: #C7162B; color: white; text-align: center; padding: 4px; font-size: 0.75rem; font-weight: 500; }
+.install-banner { background: #1A3B5C; color: white; text-align: center; padding: 10px 16px; font-size: 0.85rem; font-weight: 500; cursor: pointer; display: none; }
+.install-banner.show { display: block; }
+@media (max-width: 640px) {
+  .footer-bar { flex-direction: column; gap: 8px; align-items: stretch; }
+  .footer-bar > div:first-child { justify-content: space-around; }
+}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- 离线提示 -->
+  <div id="offline-banner" class="offline-banner hidden">⚠️ 当前离线 — 数据保存在本地</div>
+
+  <!-- PWA 安装提示 -->
+  <div id="install-banner" class="install-banner" onclick="installPWA()">📲 点击此处将此应用安装到桌面/主屏幕</div>
+
+  <!-- 顶部导航 -->
+  <header class="sticky top-0 bg-white border-b border-gray-200 z-50" style="border-color: var(--border); padding-top: env(safe-area-inset-top);">
+    <div class="max-w-7xl mx-auto px-4">
+      <div class="flex justify-between items-center h-16">
+        <h1 class="text-lg font-semibold tracking-tight" style="color: var(--primary)">📦 出租管理</h1>
+        <div class="flex items-center space-x-2">
+          <button onclick="adjustFont(-1)" class="text-gray-400 hover:text-gray-600 p-1 text-sm" title="缩小字体">A-</button>
+          <button onclick="adjustFont(1)" class="text-gray-400 hover:text-gray-600 p-1 text-sm" title="放大字体">A+</button>
+          <button onclick="openSettings()" class="text-gray-400 hover:text-gray-600 p-1 text-sm" title="设置">⚙️</button>
+        </div>
+      </div>
+      <nav class="flex overflow-x-auto -mb-px">
+        <div class="nav-tab active" data-tab="dashboard">🏠 仪表盘</div>
+        <div class="nav-tab" data-tab="scaffold">🪜 脚手架</div>
+        <div class="nav-tab" data-tab="fence">🚧 围挡</div>
+        <div class="nav-tab" data-tab="pipe">🔩 钢管架</div>
+        <div class="nav-tab" data-tab="stats">📊 统计分析</div>
+        <div class="nav-tab" data-tab="records">📋 全部记录</div>
+      </nav>
+    </div>
+  </header>
+
+  <!-- 主体内容 -->
+  <main id="main-content" class="max-w-7xl mx-auto px-4 py-6"></main>
+
+  <!-- 底部会计栏 -->
+  <div class="footer-bar">
+    <div class="flex space-x-4 text-sm">
+      <div>总额: <span id="total-amount" class="font-semibold" style="color: var(--primary)">¥0</span></div>
+      <div>已收: <span id="paid-amount" class="font-semibold text-green-600">¥0</span></div>
+      <div>未收: <span id="unpaid-amount" class="font-semibold text-red-500">¥0</span></div>
+    </div>
+    <div class="flex space-x-2">
+      <button onclick="toggleCalculator()" class="btn btn-sm">🔢</button>
+      <button onclick="exportCSV()" class="btn btn-sm">📥 导出</button>
+    </div>
+  </div>
+
+  <!-- 计算器面板 -->
+  <div id="calculator-panel" class="hidden fixed bottom-16 right-4 bg-white border border-gray-200 rounded-lg p-3 shadow-lg z-50 w-64" style="bottom: calc(80px + env(safe-area-inset-bottom));">
+    <input id="calc-display" type="text" class="mb-2 text-right font-bold text-lg" readonly placeholder="0">
+    <div class="grid grid-cols-4 gap-2">
+      <button onclick="calcInput('7')" class="btn btn-sm">7</button>
+      <button onclick="calcInput('8')" class="btn btn-sm">8</button>
+      <button onclick="calcInput('9')" class="btn btn-sm">9</button>
+      <button onclick="calcInput('/')" class="btn btn-sm">÷</button>
+      <button onclick="calcInput('4')" class="btn btn-sm">4</button>
+      <button onclick="calcInput('5')" class="btn btn-sm">5</button>
+      <button onclick="calcInput('6')" class="btn btn-sm">6</button>
+      <button onclick="calcInput('*')" class="btn btn-sm">×</button>
+      <button onclick="calcInput('1')" class="btn btn-sm">1</button>
+      <button onclick="calcInput('2')" class="btn btn-sm">2</button>
+      <button onclick="calcInput('3')" class="btn btn-sm">3</button>
+      <button onclick="calcInput('-')" class="btn btn-sm">−</button>
+      <button onclick="calcInput('0')" class="btn btn-sm">0</button>
+      <button onclick="calcInput('.')" class="btn btn-sm">.</button>
+      <button onclick="calcResult()" class="btn btn-sm btn-primary">=</button>
+      <button onclick="calcInput('+')" class="btn btn-sm">+</button>
+      <button onclick="calcClear()" class="btn btn-sm col-span-4" style="color:#C7162B;">清除</button>
+    </div>
+  </div>
+
+  <!-- 弹窗容器 -->
+  <div id="modal-container"></div>
+  <div id="toast"></div>
+</div>
+
+<script>
+// ========== 数据与初始化 ==========
+const CATEGORIES = ['scaffold', 'fence', 'pipe'];
+const CAT_NAMES = { scaffold: '脚手架', fence: '围挡', pipe: '钢管架' };
+
+let DB = {
+  settings: {
+    scaffold: {name: '脚手架', unit: '套', totalInventory: 500, dailyCost: 2, threshold: 50},
+    fence: {name: '围挡', unit: '米', totalInventory: 2000, dailyCost: 1, threshold: 100},
+    pipe: {name: '钢管架', unit: '吨', totalInventory: 100, dailyCost: 15, threshold: 20}
+  },
+  orders: [],
+  deletedOrders: []
+};
+
+function loadDB() {
+  const data = localStorage.getItem('rentalDB');
+  if (data) {
+    try { DB = JSON.parse(data); } catch(e) { /* corrupted, use default */ }
+  } else {
+    // 演示数据
+    const today = new Date();
+    const addDays = (days) => new Date(today.getTime() + days * 86400000).toISOString().split('T')[0];
+    DB.orders = [
+      { id: '1', bossName: '张老板', phone: '13800138000', location: '阳光工地', startDate: addDays(-10), endDate: addDays(-1), returnedDate: addDays(-1), quantity: 50, unitPrice: 3, deposit: 1500, paid: true, notes: '', category: 'scaffold', createdAt: Date.now() - 864000000 },
+      { id: '2', bossName: '李老板', phone: '13900139000', location: '星辰大厦', startDate: addDays(-5), endDate: addDays(1), returnedDate: null, quantity: 200, unitPrice: 1.5, deposit: 1000, paid: false, notes: '需加急', category: 'fence', createdAt: Date.now() - 432000000 },
+      { id: '3', bossName: '王老板', phone: '13700137000', location: '沿江路段', startDate: addDays(-20), endDate: addDays(-5), returnedDate: null, quantity: 10, unitPrice: 20, deposit: 2000, paid: false, notes: '', category: 'pipe', createdAt: Date.now() - 1728000000 }
+    ];
+    saveDB();
+  }
+}
+
+function saveDB() { localStorage.setItem('rentalDB', JSON.stringify(DB)); }
+
+// ========== 工具函数 ==========
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function daysBetween(start, end) {
+  if (!start || !end) return 0;
+  const s = new Date(start + 'T00:00:00');
+  const e = new Date(end + 'T00:00:00');
+  return Math.max(0, Math.floor((e - s) / 86400000));
+}
+
+function calcOrder(order) {
+  const today = new Date().toISOString().split('T')[0];
+  const endDate = order.returnedDate || today;
+  const days = Math.max(1, daysBetween(order.startDate, endDate) + 1);
+  const dailyRent = order.quantity * order.unitPrice;
+  const totalRent = dailyRent * days;
+  const depositBalance = order.deposit - totalRent;
+  return { days, dailyRent, totalRent, depositBalance };
+}
+
+function getStatus(order) {
+  if (order.returnedDate) return { text: '已回收', class: 'chip-returned' };
+  const today = new Date(); today.setHours(0,0,0,0);
+  const end = new Date(order.endDate + 'T00:00:00'); end.setHours(0,0,0,0);
+  const diff = Math.ceil((end - today) / 86400000);
+  if (diff < 0) return { text: '已逾期', class: 'chip-overdue' };
+  if (diff <= 3) return { text: '快到期', class: 'chip-warning' };
+  return { text: '在租', class: 'chip-active' };
+}
+
+function adjustFont(delta) {
+  let cur = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--font-size-base'));
+  cur += delta;
+  if (cur >= 12 && cur <= 24) {
+    document.documentElement.style.setProperty('--font-size-base', cur + 'px');
+    localStorage.setItem('fontSize', cur);
+  }
+}
+
+// ========== 路由与渲染 ==========
+document.querySelectorAll('.nav-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    // 销毁旧图表
+    Object.values(window._charts||{}).forEach(c => c && c.destroy && c.destroy());
+    window._charts = {};
+    renderView(tab.dataset.tab);
+  });
+});
+
+function renderView(view) {
+  const main = document.getElementById('main-content');
+  if (CATEGORIES.includes(view)) {
+    renderCategory(view, main);
+  } else if (view === 'dashboard') {
+    renderDashboard(main);
+  } else if (view === 'stats') {
+    renderStats(main);
+  } else if (view === 'records') {
+    renderRecords(main);
+  }
+  updateFooter();
+}
+
+// ========== 仪表盘 ==========
+function renderDashboard(container) {
+  const todayStr = new Date().toISOString().split('T')[0];
+  const activeOrders = DB.orders.filter(o => !o.returnedDate);
+  const dueToday = activeOrders.filter(o => o.endDate === todayStr);
+  const overdue = activeOrders.filter(o => o.endDate < todayStr);
+  const allRevenue = DB.orders.reduce((sum, o) => sum + calcOrder(o).totalRent, 0);
+  const monthRevenue = DB.orders.filter(o => o.startDate.startsWith(todayStr.substring(0,7))).reduce((sum, o) => sum + calcOrder(o).totalRent, 0);
+  const todayRevenue = DB.orders.filter(o => o.startDate === todayStr).reduce((sum, o) => sum + calcOrder(o).totalRent, 0);
+
+  container.innerHTML = `
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div class="stat-card">
+        <div class="stat-label">在租订单</div>
+        <div class="stat-num">${activeOrders.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">今日到期</div>
+        <div class="stat-num" style="color: #C95E00">${dueToday.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">已逾期</div>
+        <div class="stat-num" style="color: #C7162B">${overdue.length}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">营业额</div>
+        <select id="rev-select" class="mt-1 text-sm w-full border-none p-0 font-bold" style="color: var(--primary); font-size: 1.5rem;" onchange="updateRevDisplay()">
+          <option value="all">¥${allRevenue.toFixed(0)} (全部)</option>
+          <option value="month">¥${monthRevenue.toFixed(0)} (本月)</option>
+          <option value="today">¥${todayRevenue.toFixed(0)} (今日)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="card p-4">
+        <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">📅 今日到期</h4>
+        ${dueToday.length === 0 ? '<p class="text-gray-400 text-sm">暂无</p>' : dueToday.slice(0,5).map(o => `
+          <div class="flex justify-between items-center py-2 border-b border-gray-100">
+            <span class="text-sm font-medium">${o.bossName} (${o.quantity}${DB.settings[o.category].unit})</span>
+            <button onclick="event.stopPropagation();markReturned('${o.id}')" class="btn btn-sm">回收</button>
+          </div>
+        `).join('')}
+        ${dueToday.length > 5 ? `<p class="text-xs text-gray-400 mt-2">...还有 ${dueToday.length - 5} 条</p>` : ''}
+      </div>
+      <div class="card p-4">
+        <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">⚠️ 已逾期</h4>
+        ${overdue.length === 0 ? '<p class="text-gray-400 text-sm">暂无</p>' : overdue.slice(0,5).map(o => `
+          <div class="flex justify-between items-center py-2 border-b border-gray-100">
+            <span class="text-sm font-medium">${o.bossName} (${o.quantity}${DB.settings[o.category].unit})</span>
+            <button onclick="event.stopPropagation();markReturned('${o.id}')" class="btn btn-sm">回收</button>
+          </div>
+        `).join('')}
+        ${overdue.length > 5 ? `<p class="text-xs text-gray-400 mt-2">...还有 ${overdue.length - 5} 条</p>` : ''}
+      </div>
+      <div class="card p-4">
+        <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">💰 已回收未收款</h4>
+        ${(() => {
+          const unpaid = DB.orders.filter(o => o.returnedDate && !o.paid);
+          return unpaid.length === 0 ? '<p class="text-gray-400 text-sm">暂无</p>' : unpaid.slice(0,5).map(o => `
+            <div class="flex justify-between items-center py-2 border-b border-gray-100">
+              <span class="text-sm font-medium">${o.bossName} (¥${calcOrder(o).totalRent.toFixed(0)})</span>
+              <button onclick="event.stopPropagation();togglePaid('${o.id}')" class="btn btn-sm btn-primary">收款</button>
+            </div>
+          `).join('') + (unpaid.length > 5 ? `<p class="text-xs text-gray-400 mt-2">...还有 ${unpaid.length - 5} 条</p>` : '');
+        })()}
+      </div>
+    </div>
+
+    <div class="card p-4">
+      <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">🕐 最近活动</h4>
+      <div class="text-sm text-gray-600">
+        ${DB.orders.slice().reverse().slice(0,5).map(o => {
+          const status = getStatus(o);
+          return `<div class="py-1.5 border-b border-gray-50 flex justify-between">
+            <span>${o.bossName} · ${CAT_NAMES[o.category]} · ${o.quantity}${DB.settings[o.category].unit}</span>
+            <span class="chip ${status.class}">${status.text}</span>
+          </div>`;
+        }).join('') || '<p class="text-gray-400">暂无记录</p>'}
+      </div>
+    </div>
+  `;
+}
+
+function updateRevDisplay() {
+  // 纯展示切换，不需要重新渲染整个页面
+}
+
+// ========== 品类管理 ==========
+function renderCategory(cat, container) {
+  const settings = DB.settings[cat];
+  const orders = DB.orders.filter(o => o.category === cat);
+  const rented = orders.filter(o => !o.returnedDate).reduce((sum, o) => sum + o.quantity, 0);
+  const available = settings.totalInventory - rented;
+  const isLow = available <= settings.threshold;
+
+  container.innerHTML = `
+    <div class="card p-4 mb-4 flex flex-col md:flex-row justify-between items-start md:items-center">
+      <div>
+        <h2 class="text-xl font-semibold mb-1">${settings.name}管理</h2>
+        <div class="text-sm text-gray-500">
+          总量: ${settings.totalInventory} ${settings.unit} | 已租: ${rented} ${settings.unit} |
+          <span class="${isLow ? 'text-red-500 font-bold' : ''}">可用: ${available} ${settings.unit}</span>
+          ${isLow ? '<span class="ml-2 text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold">库存预警</span>' : ''}
+        </div>
+      </div>
+      <div class="flex gap-2 mt-3 md:mt-0">
+        <button onclick="openOrderModal(null, '${cat}')" class="btn btn-primary">+ 新增订单</button>
+        <button onclick="exportCatJSON('${cat}')" class="btn btn-sm">📤</button>
+        <label class="btn btn-sm" style="cursor:pointer;">📥<input type="file" hidden onchange="importCatJSON(event, '${cat}')"></label>
+      </div>
+    </div>
+
+    <div class="flex flex-col md:flex-row gap-4 mb-4">
+      <input id="search-${cat}" type="text" placeholder="🔍 搜索老板姓名/工地..." class="md:w-64" oninput="filterOrders('${cat}')">
+      <select id="status-filter-${cat}" class="md:w-40" onchange="filterOrders('${cat}')">
+        <option value="all">全部状态</option>
+        <option value="active">在租</option>
+        <option value="warning">快到期</option>
+        <option value="overdue">逾期</option>
+        <option value="returned">已回收</option>
+        <option value="unpaid">未收款</option>
+      </select>
+    </div>
+
+    <div id="orders-grid-${cat}" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      ${renderOrderCards(cat, orders)}
+    </div>
+  `;
+}
+
+function renderOrderCards(cat, orders) {
+  if (orders.length === 0) return '<p class="text-gray-400 col-span-full text-center py-8">📭 暂无订单</p>';
+  return orders.map(o => {
+    const calc = calcOrder(o);
+    const status = getStatus(o);
+    return `
+      <div class="card p-4 cursor-pointer hover:shadow-md transition-shadow" onclick="openOrderModal('${o.id}', '${cat}')">
+        <div class="flex justify-between items-start mb-2">
+          <h4 class="font-semibold">${o.bossName}</h4>
+          <span class="chip ${status.class}">${status.text}</span>
+        </div>
+        <div class="text-sm text-gray-500 mb-3">
+          📍 ${o.location || '—'}<br>
+          📦 ${o.quantity} ${DB.settings[cat].unit} &nbsp;|&nbsp; 📅 ${o.startDate} → ${o.endDate}
+          ${o.returnedDate ? '<br>✅ 已回收: ' + o.returnedDate : ''}
+        </div>
+        <div class="text-sm mb-3 border-t border-gray-100 pt-2">
+          <div class="flex justify-between"><span class="text-gray-400">日租</span> <span>¥${calc.dailyRent.toFixed(2)}</span></div>
+          <div class="flex justify-between"><span class="text-gray-400">累计 (${calc.days}天)</span> <span class="font-bold">¥${calc.totalRent.toFixed(0)}</span></div>
+          <div class="flex justify-between"><span class="text-gray-400">押金结余</span> <span class="${calc.depositBalance < 0 ? 'text-red-500' : 'text-green-600'} font-bold">¥${calc.depositBalance.toFixed(2)}</span></div>
+        </div>
+        <div class="flex flex-wrap gap-2" onclick="event.stopPropagation()">
+          ${!o.returnedDate ? `<button onclick="markReturned('${o.id}')" class="btn btn-sm flex-1">📦 回收</button>` : ''}
+          <button onclick="togglePaid('${o.id}')" class="btn btn-sm flex-1 ${o.paid ? '' : 'btn-primary'}">${o.paid ? '↩️ 未收' : '💰 收款'}</button>
+          <button onclick="deleteOrder('${o.id}')" class="btn btn-sm text-red-500">🗑️</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function filterOrders(cat) {
+  const searchEl = document.getElementById(`search-${cat}`);
+  const statusEl = document.getElementById(`status-filter-${cat}`);
+  const search = searchEl ? searchEl.value.toLowerCase() : '';
+  const status = statusEl ? statusEl.value : 'all';
+  let filtered = DB.orders.filter(o => o.category === cat);
+  if (search) {
+    filtered = filtered.filter(o => o.bossName.toLowerCase().includes(search) || o.location.toLowerCase().includes(search));
+  }
+  if (status !== 'all') {
+    filtered = filtered.filter(o => {
+      const s = getStatus(o).text;
+      if (status === 'active') return s === '在租';
+      if (status === 'warning') return s === '快到期';
+      if (status === 'overdue') return s === '已逾期';
+      if (status === 'returned') return s === '已回收';
+      if (status === 'unpaid') return !o.paid;
+      return true;
+    });
+  }
+  const grid = document.getElementById(`orders-grid-${cat}`);
+  if (grid) grid.innerHTML = renderOrderCards(cat, filtered);
+}
+
+// ========== 订单弹窗 ==========
+function openOrderModal(id, cat) {
+  const order = id ? DB.orders.find(o => o.id === id) : null;
+  const defaults = {
+    category: cat,
+    startDate: new Date().toISOString().split('T')[0],
+    endDate: '',
+    returnedDate: null,
+    quantity: 1,
+    unitPrice: 0,
+    deposit: 0,
+    paid: false,
+    bossName: '',
+    phone: '',
+    location: '',
+    notes: ''
+  };
+  const o = order || defaults;
+  const calc = order ? calcOrder(order) : null;
+
+  document.getElementById('modal-container').innerHTML = `
+    <div class="modal-mask" onclick="if(event.target===this) closeModal()">
+      <div class="modal-content p-6">
+        <h3 class="text-lg font-semibold mb-4">${id ? '✏️ 编辑订单' : '➕ 新增订单'} — ${DB.settings[cat]?.name || ''}</h3>
+        ${calc ? `
+        <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm">
+          <div class="flex justify-between"><span>累计租金 (${calc.days}天)</span><span class="font-bold">¥${calc.totalRent.toFixed(2)}</span></div>
+          <div class="flex justify-between"><span>押金结余</span><span class="${calc.depositBalance < 0 ? 'text-red-500' : 'text-green-600'} font-bold">¥${calc.depositBalance.toFixed(2)}</span></div>
+          <div class="flex justify-between"><span>状态</span><span class="chip ${getStatus(order).class}">${getStatus(order).text}</span></div>
+        </div>` : ''}
+        <div class="grid grid-cols-2 gap-4">
+          <div><label>老板姓名 *</label><input id="m-bossName" value="${o.bossName || ''}" autofocus></div>
+          <div><label>电话</label><input id="m-phone" type="tel" value="${o.phone || ''}"></div>
+          <div class="col-span-2"><label>工地位置</label><input id="m-location" value="${o.location || ''}"></div>
+          <div><label>出货日期</label><input id="m-startDate" type="date" value="${o.startDate}"></div>
+          <div><label>预计截止</label><input id="m-endDate" type="date" value="${o.endDate}"></div>
+          <div><label>实际回收</label><input id="m-returnedDate" type="date" value="${o.returnedDate || ''}"><span class="text-xs text-gray-400">空=未回收</span></div>
+          <div><label>数量</label><input id="m-quantity" type="number" value="${o.quantity}" min="0" step="any"></div>
+          <div><label>日租金/单位 (¥)</label><input id="m-unitPrice" type="number" value="${o.unitPrice}" min="0" step="0.01"></div>
+          <div><label>押金 (¥)</label><input id="m-deposit" type="number" value="${o.deposit}" min="0" step="0.01"></div>
+          <div><label>收款状态</label><select id="m-paid"><option value="false" ${!o.paid ? 'selected' : ''}>未收款</option><option value="true" ${o.paid ? 'selected' : ''}>已收款</option></select></div>
+          <div class="col-span-2"><label>备注</label><textarea id="m-notes" rows="2">${o.notes || ''}</textarea></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+          ${id ? `<button onclick="copyOrder('${id}')" class="btn btn-sm mr-auto">📋 复制</button>` : ''}
+          <button onclick="closeModal()" class="btn">取消</button>
+          <button onclick="saveOrder('${id || ''}', '${cat}')" class="btn btn-primary">💾 保存</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function closeModal() { document.getElementById('modal-container').innerHTML = ''; }
+
+function saveOrder(id, cat) {
+  const bossName = document.getElementById('m-bossName')?.value?.trim();
+  if (!bossName) { showToast('⚠️ 请填写老板姓名'); return; }
+
+  const data = {
+    bossName,
+    phone: document.getElementById('m-phone')?.value?.trim() || '',
+    location: document.getElementById('m-location')?.value?.trim() || '',
+    startDate: document.getElementById('m-startDate')?.value || '',
+    endDate: document.getElementById('m-endDate')?.value || '',
+    returnedDate: document.getElementById('m-returnedDate')?.value || null,
+    quantity: parseFloat(document.getElementById('m-quantity')?.value) || 0,
+    unitPrice: parseFloat(document.getElementById('m-unitPrice')?.value) || 0,
+    deposit: parseFloat(document.getElementById('m-deposit')?.value) || 0,
+    paid: document.getElementById('m-paid')?.value === 'true',
+    notes: document.getElementById('m-notes')?.value?.trim() || ''
+  };
+
+  if (id) {
+    const idx = DB.orders.findIndex(o => o.id === id);
+    if (idx !== -1) DB.orders[idx] = { ...DB.orders[idx], ...data };
+  } else {
+    DB.orders.push({ id: Date.now().toString(), ...data, category: cat, createdAt: Date.now() });
+  }
+  saveDB();
+  closeModal();
+  showToast(id ? '✅ 已更新' : '✅ 已添加');
+  renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || cat);
+}
+
+function markReturned(id) {
+  const order = DB.orders.find(o => o.id === id);
+  if (!order) return;
+  order.returnedDate = new Date().toISOString().split('T')[0];
+  saveDB();
+  showToast('📦 已标记回收');
+  renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || 'dashboard');
+}
+
+function togglePaid(id) {
+  const order = DB.orders.find(o => o.id === id);
+  if (!order) return;
+  order.paid = !order.paid;
+  saveDB();
+  showToast(order.paid ? '💰 已确认收款' : '↩️ 已取消收款');
+  renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || 'dashboard');
+}
+
+function deleteOrder(id) {
+  if (!confirm('⚠️ 确认删除？此操作为软删除，可在设置中恢复。')) return;
+  const idx = DB.orders.findIndex(o => o.id === id);
+  if (idx === -1) return;
+  DB.deletedOrders.push(DB.orders[idx]);
+  DB.orders.splice(idx, 1);
+  saveDB();
+  showToast('🗑️ 已删除');
+  renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || 'dashboard');
+}
+
+function copyOrder(id) {
+  const order = DB.orders.find(o => o.id === id);
+  if (!order) return;
+  const copy = { ...order, id: Date.now().toString(), bossName: order.bossName + ' (副本)', paid: false, returnedDate: null, createdAt: Date.now() };
+  DB.orders.push(copy);
+  saveDB();
+  closeModal();
+  showToast('📋 已复制');
+  renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || order.category);
+}
+
+// ========== 统计分析 ==========
+window._charts = {};
+function renderStats(container) {
+  container.innerHTML = `
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+      <div class="card p-4">
+        <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">📈 近30天每日营收</h4>
+        <canvas id="chart-revenue" height="200"></canvas>
+      </div>
+      <div class="card p-4">
+        <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">🥧 品类营收占比</h4>
+        <canvas id="chart-category" height="200"></canvas>
+      </div>
+    </div>
+
+    <div class="card p-4 mb-6">
+      <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">👤 老板排名 Top 10</h4>
+      <div id="boss-analysis" class="overflow-x-auto"></div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="card p-4">
+        <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">💰 利润估算</h4>
+        <div id="profit-table" class="overflow-x-auto"></div>
+      </div>
+      <div class="card p-4">
+        <h4 class="text-sm font-semibold mb-4 text-gray-500 uppercase tracking-wide">🔄 周转效率</h4>
+        <div id="efficiency-table" class="overflow-x-auto"></div>
+      </div>
+    </div>
+  `;
+
+  // 近30天营收柱状图
+  const revData = Array(30).fill(0);
+  const labels = [];
+  const today = new Date();
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(today.getTime() - i * 86400000);
+    const dStr = d.toISOString().split('T')[0];
+    labels.push((d.getMonth() + 1) + '/' + d.getDate());
+    DB.orders.forEach(o => {
+      const s = o.startDate, e = o.returnedDate || today.toISOString().split('T')[0];
+      if (s <= dStr && dStr <= e) revData[29 - i] += o.quantity * o.unitPrice;
+    });
+  }
+  const revCanvas = document.getElementById('chart-revenue');
+  if (revCanvas) {
+    window._charts.rev = new Chart(revCanvas, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: revData.map(v => Math.round(v)), backgroundColor: '#1A3B5C', borderRadius: 4 }] },
+      options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10 } }, y: { grid: { color: '#f3f4f6' }, ticks: { callback: v => '¥' + v } } } }
+    });
+  }
+
+  // 品类饼图
+  const catRev = CATEGORIES.map(c => DB.orders.filter(o => o.category === c).reduce((s, o) => s + calcOrder(o).totalRent, 0));
+  const catCanvas = document.getElementById('chart-category');
+  if (catCanvas) {
+    window._charts.cat = new Chart(catCanvas, {
+      type: 'doughnut',
+      data: { labels: CATEGORIES.map(c => DB.settings[c].name), datasets: [{ data: catRev, backgroundColor: ['#1A3B5C', '#48C9B0', '#9B59B6'], borderWidth: 0 }] },
+      options: { cutout: '65%', responsive: true, plugins: { legend: { position: 'bottom', labels: { padding: 16, font: { size: 13 } } } } }
+    });
+  }
+
+  // 老板分析
+  const bossMap = {};
+  DB.orders.forEach(o => {
+    if (!bossMap[o.bossName]) bossMap[o.bossName] = { name: o.bossName, rent: 0, count: 0, overdue: 0 };
+    bossMap[o.bossName].rent += calcOrder(o).totalRent;
+    bossMap[o.bossName].count++;
+    if (getStatus(o).text === '已逾期') bossMap[o.bossName].overdue++;
+  });
+  const bosses = Object.values(bossMap).sort((a, b) => b.rent - a.rent).slice(0, 10);
+  document.getElementById('boss-analysis').innerHTML = bosses.length ? `
+    <table class="w-full">
+      <thead><tr><th>#</th><th>老板</th><th>总租金</th><th>订单数</th><th>逾期</th><th>标签</th></tr></thead>
+      <tbody>
+        ${bosses.map((b, i) => `
+          <tr>
+            <td class="font-bold">${i + 1}</td>
+            <td class="font-medium">${b.name}</td>
+            <td>¥${b.rent.toFixed(0)}</td>
+            <td>${b.count}</td>
+            <td>${b.overdue}</td>
+            <td>
+              ${b.count >= 3 || b.rent >= 5000 ? '<span class="chip chip-active">⭐VIP</span> ' : ''}
+              ${b.overdue >= 2 ? '<span class="chip chip-overdue">⚠️风险</span>' : ''}
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  ` : '<p class="text-gray-400 text-center py-4">暂无数据</p>';
+
+  // 利润估算
+  let profitHtml = '<table class="w-full"><thead><tr><th>品类</th><th>收入</th><th>成本</th><th>利润</th><th>利润率</th></tr></thead><tbody>';
+  let totalRev = 0, totalCost = 0;
+  CATEGORIES.forEach(c => {
+    const orders = DB.orders.filter(o => o.category === c);
+    const rev = orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
+    const cost = orders.reduce((s, o) => s + (DB.settings[c].dailyCost || 0) * o.quantity * calcOrder(o).days, 0);
+    const profit = rev - cost;
+    totalRev += rev; totalCost += cost;
+    profitHtml += `<tr>
+      <td class="font-medium">${DB.settings[c].name}</td>
+      <td>¥${rev.toFixed(0)}</td>
+      <td>¥${cost.toFixed(0)}</td>
+      <td class="${profit >= 0 ? 'text-green-600' : 'text-red-500'} font-bold">¥${profit.toFixed(0)}</td>
+      <td>${rev ? (profit / rev * 100).toFixed(1) : '0'}%</td>
+    </tr>`;
+  });
+  const totalProfit = totalRev - totalCost;
+  profitHtml += `<tr class="font-bold bg-gray-50"><td>合计</td><td>¥${totalRev.toFixed(0)}</td><td>¥${totalCost.toFixed(0)}</td><td class="${totalProfit >= 0 ? 'text-green-600' : 'text-red-500'}">¥${totalProfit.toFixed(0)}</td><td>${totalRev ? (totalProfit / totalRev * 100).toFixed(1) : '0'}%</td></tr></tbody></table>`;
+  document.getElementById('profit-table').innerHTML = profitHtml;
+
+  // 周转效率
+  let effHtml = '<table class="w-full"><thead><tr><th>品类</th><th>订单数</th><th>平均天数</th><th>当前占用</th><th>利用率</th></tr></thead><tbody>';
+  CATEGORIES.forEach(c => {
+    const orders = DB.orders.filter(o => o.category === c);
+    const avgDays = orders.length ? (orders.reduce((s, o) => s + calcOrder(o).days, 0) / orders.length).toFixed(1) : 0;
+    const rented = orders.filter(o => !o.returnedDate).reduce((s, o) => s + o.quantity, 0);
+    const usage = DB.settings[c].totalInventory ? (rented / DB.settings[c].totalInventory * 100).toFixed(1) : 0;
+    effHtml += `<tr>
+      <td class="font-medium">${DB.settings[c].name}</td>
+      <td>${orders.length}</td>
+      <td>${avgDays} 天</td>
+      <td>${rented} / ${DB.settings[c].totalInventory} ${DB.settings[c].unit}</td>
+      <td class="font-bold">${usage}%</td>
+    </tr>`;
+  });
+  effHtml += '</tbody></table>';
+  document.getElementById('efficiency-table').innerHTML = effHtml;
+}
+
+// ========== 全部记录 ==========
+function renderRecords(container) {
+  const orders = [...DB.orders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  container.innerHTML = `
+    <div class="card p-4">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
+        <h2 class="text-xl font-semibold">📋 全部订单记录 (${orders.length}条)</h2>
+        <div class="flex gap-2 flex-wrap">
+          <input type="text" id="rec-search" placeholder="🔍 搜索..." class="md:w-48" oninput="filterRecords()">
+          <button onclick="exportCSV()" class="btn btn-primary btn-sm">📥 导出CSV</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full" id="records-table">
+          <thead>
+            <tr><th>老板</th><th>电话</th><th>品类</th><th>工地</th><th>数量</th><th>出货→截止</th><th>累计租金</th><th>状态</th><th>收款</th><th>操作</th></tr>
+          </thead>
+          <tbody id="records-tbody">
+            ${renderRecordRows(orders)}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function renderRecordRows(orders) {
+  return orders.map(o => `
+    <tr>
+      <td class="font-medium">${o.bossName}</td>
+      <td class="text-sm">${o.phone}</td>
+      <td>${CAT_NAMES[o.category]}</td>
+      <td class="text-sm">${o.location}</td>
+      <td>${o.quantity} ${DB.settings[o.category]?.unit || ''}</td>
+      <td class="text-xs">${o.startDate} → ${o.endDate}</td>
+      <td class="font-bold">¥${calcOrder(o).totalRent.toFixed(0)}</td>
+      <td><span class="chip ${getStatus(o).class}">${getStatus(o).text}</span></td>
+      <td>${o.paid ? '✅' : '❌'}</td>
+      <td><button onclick="openOrderModal('${o.id}', '${o.category}')" class="btn btn-sm">详情</button></td>
+    </tr>
+  `).join('');
+}
+
+function filterRecords() {
+  const kw = document.getElementById('rec-search')?.value?.toLowerCase() || '';
+  let orders = [...DB.orders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  if (kw) orders = orders.filter(o => o.bossName.toLowerCase().includes(kw) || o.location.toLowerCase().includes(kw) || o.phone.includes(kw));
+  const tbody = document.getElementById('records-tbody');
+  if (tbody) tbody.innerHTML = renderRecordRows(orders);
+}
+
+// ========== 底部栏与导出 ==========
+function updateFooter() {
+  const total = DB.orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
+  const paid = DB.orders.filter(o => o.paid).reduce((s, o) => s + calcOrder(o).totalRent, 0);
+  document.getElementById('total-amount').textContent = `¥${total.toFixed(0)}`;
+  document.getElementById('paid-amount').textContent = `¥${paid.toFixed(0)}`;
+  document.getElementById('unpaid-amount').textContent = `¥${(total - paid).toFixed(0)}`;
+}
+
+function exportCSV() {
+  let csv = '﻿老板,电话,工地,品类,出货日期,截止日期,回收日期,数量,单价,押金,天数,累计租金,状态,已收款,备注\n';
+  DB.orders.forEach(o => {
+    const c = calcOrder(o);
+    csv += `"${o.bossName}","${o.phone}","${o.location}","${CAT_NAMES[o.category]}","${o.startDate}","${o.endDate}","${o.returnedDate || ''}","${o.quantity}","${o.unitPrice}","${o.deposit}","${c.days}","${c.totalRent.toFixed(2)}","${getStatus(o).text}","${o.paid ? '是' : '否'}","${o.notes}"\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `出租记录_${new Date().toISOString().split('T')[0]}.csv`;
+  link.click();
+  showToast('📥 CSV 已导出');
+}
+
+function exportCatJSON(cat) {
+  const data = { settings: DB.settings[cat], orders: DB.orders.filter(o => o.category === cat) };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `${cat}_backup_${new Date().toISOString().split('T')[0]}.json`;
+  link.click();
+  showToast('📤 已导出');
+}
+
+function importCatJSON(e, cat) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (!data.orders || !Array.isArray(data.orders)) throw new Error('格式错误');
+      DB.orders = DB.orders.filter(o => o.category !== cat);
+      DB.orders.push(...data.orders.map(o => ({ ...o, id: Date.now().toString() + Math.random().toString(36).substr(2, 5), category: cat })));
+      saveDB();
+      showToast(`✅ 导入 ${data.orders.length} 条`);
+      renderView(cat);
+    } catch (err) { showToast('❌ 文件格式错误'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+}
+
+// ========== 计算器 ==========
+function toggleCalculator() {
+  document.getElementById('calculator-panel').classList.toggle('hidden');
+}
+let calcStr = '';
+function calcInput(val) { calcStr += val; const d = document.getElementById('calc-display'); if (d) d.value = calcStr; }
+function calcClear() { calcStr = ''; const d = document.getElementById('calc-display'); if (d) d.value = ''; }
+function calcResult() {
+  try {
+    calcStr = Function('"use strict"; return (' + calcStr.replace(/×/g, '*').replace(/÷/g, '/') + ')')();
+    const d = document.getElementById('calc-display');
+    if (d) d.value = Number(calcStr).toFixed(4).replace(/\.?0+$/, '');
+  } catch (e) { showToast('输入有误'); calcStr = ''; }
+}
+
+// ========== 设置 ==========
+function openSettings() {
+  document.getElementById('modal-container').innerHTML = `
+    <div class="modal-mask" onclick="if(event.target===this) closeModal()">
+      <div class="modal-content p-6">
+        <h3 class="text-lg font-semibold mb-4">⚙️ 品类设置</h3>
+        ${CATEGORIES.map(c => `
+          <div class="mb-5 pb-4 border-b last:border-0">
+            <h4 class="font-medium mb-2">${DB.settings[c].name}</h4>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div><label>名称</label><input id="set-name-${c}" value="${DB.settings[c].name}"></div>
+              <div><label>单位</label><input id="set-unit-${c}" value="${DB.settings[c].unit}"></div>
+              <div><label>总库存</label><input id="set-total-${c}" type="number" value="${DB.settings[c].totalInventory}" min="0"></div>
+              <div><label>单日成本 (¥)</label><input id="set-cost-${c}" type="number" value="${DB.settings[c].dailyCost}" min="0" step="0.01"></div>
+              <div><label>预警阈值</label><input id="set-thresh-${c}" type="number" value="${DB.settings[c].threshold}" min="0"></div>
+            </div>
+          </div>
+        `).join('')}
+        <div class="flex flex-col md:flex-row justify-between gap-3 mt-4">
+          <div class="flex gap-2">
+            <button onclick="exportAllJSON()" class="btn btn-sm">📤 导出全部</button>
+            <button onclick="importAllJSON()" class="btn btn-sm">📥 导入全部</button>
+          </div>
+          <button onclick="saveSettings()" class="btn btn-primary">💾 保存设置</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function saveSettings() {
+  CATEGORIES.forEach(c => {
+    const nameEl = document.getElementById(`set-name-${c}`);
+    const unitEl = document.getElementById(`set-unit-${c}`);
+    const totalEl = document.getElementById(`set-total-${c}`);
+    const costEl = document.getElementById(`set-cost-${c}`);
+    const threshEl = document.getElementById(`set-thresh-${c}`);
+    if (nameEl) DB.settings[c].name = nameEl.value.trim() || DB.settings[c].name;
+    if (unitEl) DB.settings[c].unit = unitEl.value.trim() || DB.settings[c].unit;
+    if (totalEl) DB.settings[c].totalInventory = parseFloat(totalEl.value) || 0;
+    if (costEl) DB.settings[c].dailyCost = parseFloat(costEl.value) || 0;
+    if (threshEl) DB.settings[c].threshold = parseFloat(threshEl.value) || 0;
+  });
+  saveDB();
+  closeModal();
+  showToast('✅ 设置已保存');
+  renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || 'dashboard');
+}
+
+function exportAllJSON() {
+  const blob = new Blob([JSON.stringify(DB, null, 2)], { type: 'application/json' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = `rental_full_backup_${new Date().toISOString().split('T')[0]}.json`;
+  link.click();
+  showToast('📤 全部数据已导出');
+}
+
+function importAllJSON() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (!data.orders || !data.settings) throw new Error('格式错误');
+        DB = data;
+        saveDB();
+        closeModal();
+        showToast('✅ 导入成功');
+        renderView('dashboard');
+      } catch (err) { showToast('❌ 文件格式错误'); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ========== PWA ==========
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  document.getElementById('install-banner').classList.add('show');
+});
+
+function installPWA() {
+  if (!deferredInstallPrompt) {
+    showToast('📲 请通过浏览器菜单 → 添加到主屏幕');
+    return;
+  }
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then(result => {
+    if (result.outcome === 'accepted') {
+      document.getElementById('install-banner').classList.remove('show');
+      showToast('✅ 安装成功！');
+    }
+    deferredInstallPrompt = null;
+  });
+}
+
+window.addEventListener('appinstalled', () => {
+  document.getElementById('install-banner').classList.remove('show');
+  deferredInstallPrompt = null;
+});
+
+// Service Worker 注册
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('✅ SW registered:', reg.scope))
+      .catch(() => console.log('SW: 跳过（可能是本地文件）'));
+  });
+}
+
+// 网络状态监听
+function updateOnlineStatus() {
+  const banner = document.getElementById('offline-banner');
+  if (navigator.onLine) {
+    banner.classList.add('hidden');
+  } else {
+    banner.classList.remove('hidden');
+  }
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+// ========== 键盘快捷键 ==========
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('modal-container').innerHTML) {
+    closeModal();
+  }
+});
+
+// ========== 初始化 ==========
+window.addEventListener('DOMContentLoaded', () => {
+  const savedFont = localStorage.getItem('fontSize');
+  if (savedFont) document.documentElement.style.setProperty('--font-size-base', savedFont + 'px');
+
+  loadDB();
+  updateOnlineStatus();
+  renderView('dashboard');
+
+  // 延迟显示安装横幅（等 beforeinstallprompt 事件触发）
+  setTimeout(() => {
+    if (!deferredInstallPrompt && window.matchMedia('(display-mode: standalone)').matches) {
+      document.getElementById('install-banner').classList.remove('show');
+    }
+  }, 3000);
+});
+</script>
+</body>
+</html>

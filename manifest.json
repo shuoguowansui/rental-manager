@@ -1,0 +1,27 @@
+{
+  "name": "极简出租管理系统",
+  "short_name": "出租管理",
+  "description": "脚手架·围挡·钢管架出租管理",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1A3B5C",
+  "lang": "zh-CN",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
