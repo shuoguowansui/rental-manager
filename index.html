@@ -1110,8 +1110,8 @@ function switchStatsPeriod(period) {
     window._statsDate = today.getFullYear() + '-' + String(m+1).padStart(2,'0') + '-01';
   } else if (period === 'year') { window._statsDate = today.getFullYear() + '-01-01'; }
 
-  const picker = document.getElementById('stats-date-picker');
-  if (picker) picker.value = window._statsDate;
+  const picker2 = document.getElementById('stats-date-picker');
+  if (picker2) picker2.value = window._statsDate;
   renderStatsDetail();
 }
 
