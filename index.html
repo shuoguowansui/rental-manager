@@ -302,9 +302,9 @@ function loadDB() {
     const today = new Date();
     const addDays = (days) => new Date(today.getTime() + days * 86400000).toISOString().split('T')[0];
     DB.orders = [
-      { id: '1', bossName: '张老板', phone: '13800138000', location: '阳光工地', startDate: addDays(-10), endDate: addDays(-1), returnedDate: addDays(-1), quantity: 50, unitPrice: 3, deposit: 1500, paid: true, notes: '', category: 'scaffold', createdAt: Date.now() - 864000000 },
-      { id: '2', bossName: '李老板', phone: '13900139000', location: '星辰大厦', startDate: addDays(-5), endDate: addDays(1), returnedDate: null, quantity: 200, unitPrice: 1.5, deposit: 1000, paid: false, notes: '需加急', category: 'fence', createdAt: Date.now() - 432000000 },
-      { id: '3', bossName: '王老板', phone: '13700137000', location: '沿江路段', startDate: addDays(-20), endDate: addDays(-5), returnedDate: null, quantity: 10, unitPrice: 20, deposit: 2000, paid: false, notes: '', category: 'pipe', createdAt: Date.now() - 1728000000 }
+      { id: '1', bossName: '张老板', phone: '13800138000', location: '阳光工地', startDate: addDays(-10), quantity: 50, unitPrice: 3, deposit: 1500, paid: true, notes: '', category: 'scaffold', createdAt: Date.now() - 864000000, returnRecords: [{date: addDays(-1), quantity: 50, notes: ''}] },
+      { id: '2', bossName: '李老板', phone: '13900139000', location: '星辰大厦', startDate: addDays(-5), quantity: 200, unitPrice: 1.5, deposit: 1000, paid: false, notes: '需加急', category: 'fence', createdAt: Date.now() - 432000000, returnRecords: [] },
+      { id: '3', bossName: '王老板', phone: '13700137000', location: '沿江路段', startDate: addDays(-20), quantity: 10, unitPrice: 20, deposit: 2000, paid: false, notes: '', category: 'pipe', createdAt: Date.now() - 1728000000, returnRecords: [{date: addDays(-8), quantity: 4, notes: '损坏2套'}] }
     ];
     saveDB();
   }
@@ -330,21 +330,38 @@ function daysBetween(start, end) {
 
 function calcOrder(order) {
   const today = new Date().toISOString().split('T')[0];
-  const endDate = order.returnedDate || today;
-  const days = Math.max(1, daysBetween(order.startDate, endDate) + 1);
-  const dailyRent = order.quantity * order.unitPrice;
-  const totalRent = dailyRent * days;
+  const totalQty = order.quantity;
+  const records = [...(order.returnRecords || [])].sort((a, b) => a.date.localeCompare(b.date));
+
+  let totalRent = 0;
+  let remaining = totalQty;
+  let prevDate = order.startDate;
+
+  for (const rec of records) {
+    const days = Math.max(1, daysBetween(prevDate, rec.date) + 1);
+    totalRent += remaining * order.unitPrice * days;
+    remaining -= rec.quantity;
+    prevDate = rec.date;
+  }
+  // 剩余未回收部分，算到今天
+  const finalDays = Math.max(1, daysBetween(prevDate, today) + 1);
+  totalRent += remaining * order.unitPrice * finalDays;
+
+  const dailyRent = remaining * order.unitPrice;
   const depositBalance = order.deposit - totalRent;
-  return { days, dailyRent, totalRent, depositBalance };
+  const returnedQty = totalQty - remaining;
+  const totalDays = daysBetween(order.startDate, today) + 1;
+
+  return { dailyRent, totalRent, depositBalance, returnedQty, remaining, days: totalDays };
 }
 
+function getReturnedQty(order) {
+  return (order.returnRecords || []).reduce((sum, r) => sum + r.quantity, 0);
+}
 function getStatus(order) {
-  if (order.returnedDate) return { text: '已回收', class: 'chip-returned' };
-  const today = new Date(); today.setHours(0,0,0,0);
-  const end = new Date(order.endDate + 'T00:00:00'); end.setHours(0,0,0,0);
-  const diff = Math.ceil((end - today) / 86400000);
-  if (diff < 0) return { text: '已逾期', class: 'chip-overdue' };
-  if (diff <= 3) return { text: '快到期', class: 'chip-warning' };
+  const returned = getReturnedQty(order);
+  if (returned >= order.quantity) return { text: '已回收', class: 'chip-returned' };
+  if (returned > 0) return { text: '部分回收', class: 'chip-warning' };
   return { text: '在租', class: 'chip-active' };
 }
 
@@ -409,9 +426,11 @@ function renderDashboard(container) {
   checkBackupReminder();
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const activeOrders = DB.orders.filter(o => !o.returnedDate);
-  const dueToday = activeOrders.filter(o => o.endDate === todayStr);
-  const overdue = activeOrders.filter(o => o.endDate < todayStr);
+  const activeOrders = DB.orders.filter(o => getReturnedQty(o) < o.quantity);
+  const partialOrders = activeOrders.filter(o => getReturnedQty(o) > 0);
+  const recentReturned = DB.orders.filter(o => {
+    return (o.returnRecords || []).some(r => daysBetween(r.date, todayStr) <= 7);
+  });
   const allRevenue = totalRevenue();
   const monthRevenue = revenueInPeriod(getMonthRange(todayStr));
   const todayRevenue = revenueInPeriod({start: todayStr, end: todayStr});
@@ -423,12 +442,12 @@ function renderDashboard(container) {
         <div class="stat-num">${activeOrders.length}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">今日到期</div>
-        <div class="stat-num" style="color: #C95E00">${dueToday.length}</div>
+        <div class="stat-label">部分回收</div>
+        <div class="stat-num" style="color: #C95E00">${partialOrders.length}</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">已逾期</div>
-        <div class="stat-num" style="color: #C7162B">${overdue.length}</div>
+        <div class="stat-label">近期回收</div>
+        <div class="stat-num" style="color: #0E8C4E">${recentReturned.length}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">营业额</div>
@@ -442,29 +461,31 @@ function renderDashboard(container) {
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
       <div class="card p-4">
-        <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">📅 今日到期</h4>
-        ${dueToday.length === 0 ? '<p class="text-gray-400 text-sm">暂无</p>' : dueToday.slice(0,5).map(o => `
-          <div class="flex justify-between items-center py-2 border-b border-gray-100">
-            <span class="text-sm font-medium">${o.bossName} (${o.quantity}${DB.settings[o.category].unit})</span>
-            <button onclick="event.stopPropagation();markReturned('${o.id}')" class="btn btn-sm">回收</button>
-          </div>
-        `).join('')}
-        ${dueToday.length > 5 ? `<p class="text-xs text-gray-400 mt-2">...还有 ${dueToday.length - 5} 条</p>` : ''}
+        <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">🔄 部分回收</h4>
+        ${partialOrders.length === 0 ? '<p class="text-gray-400 text-sm">暂无</p>' : partialOrders.slice(0,5).map(o => {
+          const ret = getReturnedQty(o);
+          return `<div class="flex justify-between items-center py-2 border-b border-gray-100">
+            <span class="text-sm font-medium">${o.bossName} (${ret}/${o.quantity}${DB.settings[o.category].unit})</span>
+            <button onclick="event.stopPropagation();openReturnModal('${o.id}')" class="btn btn-sm">回收</button>
+          </div>`;
+        }).join('')}
+        ${partialOrders.length > 5 ? `<p class="text-xs text-gray-400 mt-2">...还有 ${partialOrders.length - 5} 条</p>` : ''}
       </div>
       <div class="card p-4">
-        <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">⚠️ 已逾期</h4>
-        ${overdue.length === 0 ? '<p class="text-gray-400 text-sm">暂无</p>' : overdue.slice(0,5).map(o => `
-          <div class="flex justify-between items-center py-2 border-b border-gray-100">
+        <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">📦 近期回收</h4>
+        ${recentReturned.length === 0 ? '<p class="text-gray-400 text-sm">暂无</p>' : recentReturned.slice(0,5).map(o => {
+          const lastRet = (o.returnRecords || []).slice(-1)[0];
+          return `<div class="flex justify-between items-center py-2 border-b border-gray-100">
             <span class="text-sm font-medium">${o.bossName} (${o.quantity}${DB.settings[o.category].unit})</span>
-            <button onclick="event.stopPropagation();markReturned('${o.id}')" class="btn btn-sm">回收</button>
-          </div>
-        `).join('')}
-        ${overdue.length > 5 ? `<p class="text-xs text-gray-400 mt-2">...还有 ${overdue.length - 5} 条</p>` : ''}
+            <span class="text-xs text-gray-400">${lastRet?.date || ''}</span>
+          </div>`;
+        }).join('')}
+        ${recentReturned.length > 5 ? `<p class="text-xs text-gray-400 mt-2">...还有 ${recentReturned.length - 5} 条</p>` : ''}
       </div>
       <div class="card p-4">
         <h4 class="text-sm font-semibold mb-3 text-gray-500 uppercase tracking-wide">💰 已回收未收款</h4>
         ${(() => {
-          const unpaid = DB.orders.filter(o => o.returnedDate && !o.paid);
+          const unpaid = DB.orders.filter(o => getReturnedQty(o) > 0 && !o.paid);
           return unpaid.length === 0 ? '<p class="text-gray-400 text-sm">暂无</p>' : unpaid.slice(0,5).map(o => `
             <div class="flex justify-between items-center py-2 border-b border-gray-100">
               <span class="text-sm font-medium">${o.bossName} (¥${calcOrder(o).totalRent.toFixed(0)})</span>
@@ -508,7 +529,7 @@ function updateRevDisplay() {
 function renderCategory(cat, container) {
   const settings = DB.settings[cat];
   const orders = DB.orders.filter(o => o.category === cat);
-  const rented = orders.filter(o => !o.returnedDate).reduce((sum, o) => sum + o.quantity, 0);
+  const rented = orders.reduce((sum, o) => sum + (o.quantity - getReturnedQty(o)), 0);
   const available = settings.totalInventory - rented;
   const isLow = available <= settings.threshold;
 
@@ -534,8 +555,7 @@ function renderCategory(cat, container) {
       <select id="status-filter-${cat}" class="md:w-40" onchange="filterOrders('${cat}')">
         <option value="all">全部状态</option>
         <option value="active">在租</option>
-        <option value="warning">快到期</option>
-        <option value="overdue">逾期</option>
+        <option value="partial">部分回收</option>
         <option value="returned">已回收</option>
         <option value="unpaid">未收款</option>
       </select>
@@ -560,16 +580,17 @@ function renderOrderCards(cat, orders) {
         </div>
         <div class="text-sm text-gray-500 mb-3">
           📍 ${o.location || '—'}<br>
-          📦 ${o.quantity} ${DB.settings[cat].unit} &nbsp;|&nbsp; 📅 ${o.startDate} → ${o.endDate}
-          ${o.returnedDate ? '<br>✅ 已回收: ' + o.returnedDate : ''}
+          📦 ${o.quantity} ${DB.settings[cat].unit} &nbsp;|&nbsp; 📅 ${o.startDate} 出货
+          ${calc.returnedQty > 0 ? '<br>📦 已回收: ' + calc.returnedQty + ' ' + DB.settings[cat].unit : ''}
         </div>
         <div class="text-sm mb-3 border-t border-gray-100 pt-2">
+          <div class="flex justify-between"><span class="text-gray-400">待回收</span> <span style="color:var(--primary)">${calc.remaining} ${DB.settings[cat].unit}</span></div>
           <div class="flex justify-between"><span class="text-gray-400">日租</span> <span>¥${calc.dailyRent.toFixed(2)}</span></div>
           <div class="flex justify-between"><span class="text-gray-400">累计 (${calc.days}天)</span> <span class="font-bold">¥${calc.totalRent.toFixed(0)}</span></div>
           <div class="flex justify-between"><span class="text-gray-400">押金结余</span> <span class="${calc.depositBalance < 0 ? 'text-red-500' : 'text-green-600'} font-bold">¥${calc.depositBalance.toFixed(2)}</span></div>
         </div>
         <div class="flex flex-wrap gap-2" onclick="event.stopPropagation()">
-          ${!o.returnedDate ? `<button onclick="markReturned('${o.id}')" class="btn btn-sm flex-1">📦 回收</button>` : ''}
+          ${calc.remaining > 0 ? `<button onclick="openReturnModal('${o.id}')" class="btn btn-sm flex-1">📦 回收</button>` : ''}
           <button onclick="togglePaid('${o.id}')" class="btn btn-sm flex-1 ${o.paid ? '' : 'btn-primary'}">${o.paid ? '↩️ 未收' : '💰 收款'}</button>
           <button onclick="deleteOrder('${o.id}')" class="btn btn-sm text-red-500">🗑️</button>
         </div>
@@ -591,8 +612,7 @@ function filterOrders(cat) {
     filtered = filtered.filter(o => {
       const s = getStatus(o).text;
       if (status === 'active') return s === '在租';
-      if (status === 'warning') return s === '快到期';
-      if (status === 'overdue') return s === '已逾期';
+      if (status === 'partial') return s === '部分回收';
       if (status === 'returned') return s === '已回收';
       if (status === 'unpaid') return !o.paid;
       return true;
@@ -608,8 +628,6 @@ function openOrderModal(id, cat) {
   const defaults = {
     category: cat,
     startDate: new Date().toISOString().split('T')[0],
-    endDate: '',
-    returnedDate: null,
     quantity: 1,
     unitPrice: 0,
     deposit: 0,
@@ -617,7 +635,8 @@ function openOrderModal(id, cat) {
     bossName: '',
     phone: '',
     location: '',
-    notes: ''
+    notes: '',
+    returnRecords: []
   };
   const o = order || defaults;
   const calc = order ? calcOrder(order) : null;
@@ -628,17 +647,22 @@ function openOrderModal(id, cat) {
         <h3 class="text-lg font-semibold mb-4">${id ? '✏️ 编辑订单' : '➕ 新增订单'} — ${DB.settings[cat]?.name || ''}</h3>
         ${calc ? `
         <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm">
+          <div class="flex justify-between"><span>已回收</span><span class="font-bold">${calc.returnedQty} / ${order.quantity} ${DB.settings[order.category].unit}</span></div>
+          <div class="flex justify-between"><span>待回收</span><span style="color: var(--primary)" class="font-bold">${calc.remaining} ${DB.settings[order.category].unit}</span></div>
           <div class="flex justify-between"><span>累计租金 (${calc.days}天)</span><span class="font-bold">¥${calc.totalRent.toFixed(2)}</span></div>
           <div class="flex justify-between"><span>押金结余</span><span class="${calc.depositBalance < 0 ? 'text-red-500' : 'text-green-600'} font-bold">¥${calc.depositBalance.toFixed(2)}</span></div>
           <div class="flex justify-between"><span>状态</span><span class="chip ${getStatus(order).class}">${getStatus(order).text}</span></div>
+        </div>` : ''}
+        ${order && (order.returnRecords || []).length > 0 ? `
+        <div class="mb-4">
+          <h4 class="text-xs font-semibold text-gray-400 uppercase mb-1">回收记录</h4>
+          ${(order.returnRecords || []).map(r => `<div class="text-sm text-gray-500">📅 ${r.date} — ${r.quantity} ${DB.settings[order.category].unit} ${r.notes ? '(' + r.notes + ')' : ''}</div>`).join('')}
         </div>` : ''}
         <div class="grid grid-cols-2 gap-4">
           <div><label>老板姓名 *</label><input id="m-bossName" value="${o.bossName || ''}" autofocus></div>
           <div><label>电话</label><input id="m-phone" type="tel" value="${o.phone || ''}"></div>
           <div class="col-span-2"><label>工地位置</label><input id="m-location" value="${o.location || ''}"></div>
           <div><label>出货日期</label><input id="m-startDate" type="date" value="${o.startDate}"></div>
-          <div><label>预计截止</label><input id="m-endDate" type="date" value="${o.endDate}"></div>
-          <div><label>实际回收</label><input id="m-returnedDate" type="date" value="${o.returnedDate || ''}"><span class="text-xs text-gray-400">空=未回收</span></div>
           <div><label>数量</label><input id="m-quantity" type="number" value="${o.quantity}" min="0" step="any"></div>
           <div><label>日租金/单位 (¥)</label><input id="m-unitPrice" type="number" value="${o.unitPrice}" min="0" step="0.01"></div>
           <div><label>押金 (¥)</label><input id="m-deposit" type="number" value="${o.deposit}" min="0" step="0.01"></div>
@@ -666,8 +690,6 @@ function saveOrder(id, cat) {
     phone: document.getElementById('m-phone')?.value?.trim() || '',
     location: document.getElementById('m-location')?.value?.trim() || '',
     startDate: document.getElementById('m-startDate')?.value || '',
-    endDate: document.getElementById('m-endDate')?.value || '',
-    returnedDate: document.getElementById('m-returnedDate')?.value || null,
     quantity: parseFloat(document.getElementById('m-quantity')?.value) || 0,
     unitPrice: parseFloat(document.getElementById('m-unitPrice')?.value) || 0,
     deposit: parseFloat(document.getElementById('m-deposit')?.value) || 0,
@@ -687,12 +709,56 @@ function saveOrder(id, cat) {
   renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || cat);
 }
 
-function markReturned(id) {
+function openReturnModal(id) {
   const order = DB.orders.find(o => o.id === id);
   if (!order) return;
-  order.returnedDate = new Date().toISOString().split('T')[0];
+  const returned = getReturnedQty(order);
+  const remaining = order.quantity - returned;
+  const records = order.returnRecords || [];
+
+  document.getElementById('modal-container').innerHTML = `
+    <div class="modal-mask" onclick="if(event.target===this) closeModal()">
+      <div class="modal-content p-6">
+        <h3 class="text-lg font-semibold mb-4">📦 回收 — ${order.bossName}</h3>
+        <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm">
+          <div class="flex justify-between"><span>总量</span><span class="font-bold">${order.quantity} ${DB.settings[order.category].unit}</span></div>
+          <div class="flex justify-between"><span>已回收</span><span class="text-green-600 font-bold">${returned} ${DB.settings[order.category].unit}</span></div>
+          <div class="flex justify-between"><span>待回收</span><span class="font-bold" style="color: var(--primary)">${remaining} ${DB.settings[order.category].unit}</span></div>
+        </div>
+        ${records.length > 0 ? `
+        <div class="mb-4">
+          <h4 class="text-xs font-semibold text-gray-400 uppercase mb-2">回收记录</h4>
+          ${records.map(r => `<div class="text-sm py-1 border-b border-gray-100 flex justify-between"><span>📅 ${r.date}</span><span>${r.quantity} ${DB.settings[order.category].unit}</span>${r.notes ? '<span class="text-gray-400">' + r.notes + '</span>' : ''}</div>`).join('')}
+        </div>` : ''}
+        <div class="grid grid-cols-2 gap-4">
+          <div><label>回收数量 *</label><input id="ret-qty" type="number" value="${remaining}" min="1" max="${remaining}" step="any"></div>
+          <div><label>回收日期</label><input id="ret-date" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+          <div class="col-span-2"><label>备注</label><input id="ret-notes" placeholder="如：损坏、缺件等"></div>
+        </div>
+        <div class="flex justify-end gap-2 mt-6">
+          <button onclick="closeModal()" class="btn">取消</button>
+          <button onclick="doReturn('${id}')" class="btn btn-primary">✅ 确认回收</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function doReturn(id) {
+  const order = DB.orders.find(o => o.id === id);
+  if (!order) return;
+  const qty = parseFloat(document.getElementById('ret-qty')?.value) || 0;
+  const date = document.getElementById('ret-date')?.value || '';
+  const notes = document.getElementById('ret-notes')?.value?.trim() || '';
+  const alreadyReturned = getReturnedQty(order);
+  if (qty <= 0) { showToast('⚠️ 请输入有效数量'); return; }
+  if (alreadyReturned + qty > order.quantity) { showToast('⚠️ 回收数量超过总量'); return; }
+
+  if (!order.returnRecords) order.returnRecords = [];
+  order.returnRecords.push({ date, quantity: qty, notes });
   saveDB();
-  showToast('📦 已标记回收');
+  closeModal();
+  showToast('📦 已回收 ' + qty + ' ' + DB.settings[order.category].unit);
   renderView(document.querySelector('.nav-tab.active')?.dataset?.tab || 'dashboard');
 }
 
@@ -719,7 +785,7 @@ function deleteOrder(id) {
 function copyOrder(id) {
   const order = DB.orders.find(o => o.id === id);
   if (!order) return;
-  const copy = { ...order, id: Date.now().toString(), bossName: order.bossName + ' (副本)', paid: false, returnedDate: null, createdAt: Date.now() };
+  const copy = { ...order, id: Date.now().toString(), bossName: order.bossName + ' (副本)', paid: false, returnRecords: [], createdAt: Date.now() };
   DB.orders.push(copy);
   saveDB();
   closeModal();
@@ -1005,8 +1071,12 @@ function renderStats(container) {
       const dStr = d.toISOString().split('T')[0];
       labels.push((d.getMonth() + 1) + '/' + d.getDate());
       DB.orders.forEach(o => {
-        const s = o.startDate, e = o.returnedDate || today.toISOString().split('T')[0];
-        if (s <= dStr && dStr <= e) revData[29 - i] += o.quantity * o.unitPrice;
+        if (o.startDate > dStr) return;
+        let activeQty = o.quantity;
+        (o.returnRecords || []).forEach(r => {
+          if (r.date < dStr) activeQty -= r.quantity;
+        });
+        if (activeQty > 0) revData[29 - i] += activeQty * o.unitPrice;
       });
       DB.sales.forEach(s => {
         if (s.date === dStr) revData[29 - i] += (s.totalAmount || s.quantity * s.unitPrice);
@@ -1142,20 +1212,33 @@ function getDateRange(period, dateStr) {
 }
 
 function revenueInPeriod(range) {
-  if (!range.start && !range.end) {
-    const rent = DB.orders.reduce((s, o) => s + calcOrder(o).totalRent, 0);
-    const sale = DB.sales.reduce((s, o) => s + (o.totalAmount || o.quantity * o.unitPrice), 0);
-    return rent + sale;
-  }
+  if (!range.start && !range.end) return totalRevenue();
   let total = 0;
   DB.orders.forEach(o => {
-    const dailyRent = o.quantity * o.unitPrice;
-    const start = o.startDate, end = o.returnedDate || range.end;
-    if (start <= range.end && end >= range.start) {
-      const s = start < range.start ? range.start : start;
-      const e = end > range.end ? range.end : end;
-      const days = Math.max(1, daysBetween(s, e) + 1);
-      total += dailyRent * days;
+    // Walk through return records to compute rent in the period
+    let remaining = o.quantity;
+    let cursor = o.startDate;
+    const records = [...(o.returnRecords || [])].sort((a, b) => a.date.localeCompare(b.date));
+    for (const rec of records) {
+      const segEnd = rec.date;
+      // Check overlap with [range.start, range.end]
+      const s = cursor < range.start ? range.start : cursor;
+      const e = segEnd > range.end ? range.end : segEnd;
+      if (s <= e) {
+        const days = Math.max(1, daysBetween(s, e) + 1);
+        total += remaining * o.unitPrice * days;
+      }
+      remaining -= rec.quantity;
+      cursor = rec.date;
+      if (cursor > range.end) break;
+    }
+    if (cursor <= range.end) {
+      const s = cursor < range.start ? range.start : cursor;
+      const e = new Date().toISOString().split('T')[0];
+      const end = e > range.end ? range.end : e;
+      if (s <= end && remaining > 0) {
+        total += remaining * o.unitPrice * Math.max(1, daysBetween(s, end) + 1);
+      }
     }
   });
   DB.sales.forEach(s => {
@@ -1186,21 +1269,22 @@ function renderStatsDetail() {
   // 收集所有记录
   const rows = [];
   DB.orders.forEach(o => {
-    const dailyRent = o.quantity * o.unitPrice;
-    const start = o.startDate, end = o.returnedDate || (range.end || new Date().toISOString().split('T')[0]);
-    if (!range.start || (start <= range.end && end >= range.start)) {
-      const s = range.start && start < range.start ? range.start : start;
-      const e = range.end && end > range.end ? range.end : end;
-      const days = Math.max(1, daysBetween(s, e) + 1);
-      rows.push({
-        date: o.startDate,
-        customer: o.bossName,
-        category: CAT_NAMES[o.category],
-        source: '🔧出租',
-        detail: o.quantity + DB.settings[o.category].unit + ' × ' + days + '天',
-        amount: dailyRent * days
-      });
+    if (range.start && o.startDate > range.end) return;
+    const returned = getReturnedQty(o);
+    if (range.start && returned >= o.quantity) {
+      // Check if any return happened in range
+      const hasReturnInRange = (o.returnRecords || []).some(r => r.date >= range.start && r.date <= range.end);
+      if (!hasReturnInRange) return;
     }
+    const calc = calcOrder(o);
+    rows.push({
+      date: o.startDate,
+      customer: o.bossName,
+      category: CAT_NAMES[o.category],
+      source: '🔧出租',
+      detail: o.quantity + DB.settings[o.category].unit + ' (已收' + returned + ', 待收' + calc.remaining + ', ' + calc.days + '天)',
+      amount: calc.totalRent
+    });
   });
   DB.sales.forEach(s => {
     if (!range.start || (s.date >= range.start && s.date <= range.end)) {
@@ -1247,9 +1331,10 @@ function renderStatsDetail() {
 function renderRecords(container) {
   const all = [];
   DB.orders.forEach(o => {
+    const returned = getReturnedQty(o);
     all.push({
       date: o.startDate, customer: o.bossName, phone: o.phone, category: CAT_NAMES[o.category],
-      source: '🔧出租', detail: o.quantity + (DB.settings[o.category]?.unit || ''),
+      source: '🔧出租', detail: returned + '/' + o.quantity + (DB.settings[o.category]?.unit || ''),
       amount: calcOrder(o).totalRent, status: getStatus(o).text, paid: o.paid,
       id: o.id, type: 'order', cat: o.category
     });
@@ -1333,7 +1418,7 @@ function exportCSV() {
   let csv = '﻿日期,类型,客户,电话,品类,明细,金额,收款状态,备注\n';
   DB.orders.forEach(o => {
     const c = calcOrder(o);
-    csv += `"${o.startDate}","出租","${o.bossName}","${o.phone}","${CAT_NAMES[o.category]}","${o.quantity}${DB.settings[o.category].unit}×${c.days}天","${c.totalRent.toFixed(2)}","${o.paid ? '是' : '否'}","${o.notes}"\n`;
+    csv += `"${o.startDate}","出租","${o.bossName}","${o.phone}","${CAT_NAMES[o.category]}","${o.quantity}${DB.settings[o.category].unit} 已收${c.returnedQty}×${c.days}天","${c.totalRent.toFixed(2)}","${o.paid ? '是' : '否'}","${o.notes}"\n`;
   });
   DB.sales.forEach(s => {
     csv += `"${s.date}","售卖","${s.customerName}","","${s.category === 'fence' ? '围挡' : (s.category === 'scaffold' ? '脚手架' : '钢管架')}","${getSaleItemName(s)}×${s.quantity}套","${(s.totalAmount || s.quantity * s.unitPrice).toFixed(2)}","${s.paid ? '是' : '否'}","${s.notes}"\n`;
